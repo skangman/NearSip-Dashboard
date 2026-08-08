@@ -347,7 +347,7 @@ function realtimePage(d,p){
   const metricTotals={users:d.unique,cheers:d.cheersSent,match:d.matches,chat:d.chats,nsc:d.nscConsumed,topup:d.nscPurchased};
   const current=timeSeries(metricTotals[state.timeMetric],points,"rt-"+state.timeMetric),prev=current.map((x,i)=>Math.round(x*(.82+(i%3)*.05)));
   const peakMetric=(m)=>{const arr=timeSeries(metricTotals[m],points,"peak-"+m);return labels[arr.indexOf(Math.max(...arr))]};
-  return `${hero("สถานะตอนนี้","รวมข้อมูล Real-time สำคัญทั้งหมดไว้ในหน้าเดียวสำหรับเฝ้าดูแบบสด","MOCK REAL-TIME DATA · NOT PRODUCTION DATA")}
+  return `${hero("สถานะตอนนี้","รวมข้อมูล Real-time สำคัญทั้งหมดไว้ในหน้าเดียวสำหรับเฝ้าดูแบบสด"," ")}
 
   <section class="card" style="padding:18px;margin-bottom:16px">
     <div class="card-head"><div><h3>Focus Cards — Real-time ที่ต้องเห็นก่อน</h3><p>ตัวเลขใหญ่คือ Real-time ตอนนี้ และตัวเลขเล็กสีทองด้านล่างคือยอดรวมทั้งคืนจนถึงปัจจุบัน</p></div><span class="tag warn">TV Monitoring Ready</span></div>
