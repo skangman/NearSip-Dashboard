@@ -10,21 +10,23 @@ import {
 import {
   getViewerScopeLabel,
   ROLE_LABELS,
+  type ManagedUser,
   type Viewer,
 } from "@/lib/auth-types";
 
 type DashboardProps = {
   viewer: Viewer;
+  managedUsers: ManagedUser[];
 };
 
-export function Dashboard({ viewer }: DashboardProps) {
+export function Dashboard({ viewer, managedUsers }: DashboardProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"overall" | "realtime">("overall");
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
-    return mountDashboard(setMode, viewer);
-  }, [viewer]);
+    return mountDashboard(setMode, viewer, managedUsers);
+  }, [viewer, managedUsers]);
 
   async function handleLogout() {
     setLoggingOut(true);

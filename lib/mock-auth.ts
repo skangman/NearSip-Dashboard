@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import {
   getViewerScopeLabel,
+  type ManagedUser,
   type PublicMockAccount,
   type Viewer,
 } from "@/lib/auth-types";
@@ -53,6 +54,16 @@ export function getPublicMockAccounts(): PublicMockAccount[] {
   return MOCK_ACCOUNTS.map(({ password, viewer }) => ({
     username: viewer.username,
     password,
+    displayName: viewer.displayName,
+    role: viewer.role,
+    scope: getViewerScopeLabel(viewer),
+  }));
+}
+
+export function getManagedMockUsers(): ManagedUser[] {
+  return MOCK_ACCOUNTS.map(({ viewer }) => ({
+    id: viewer.id,
+    username: viewer.username,
     displayName: viewer.displayName,
     role: viewer.role,
     scope: getViewerScopeLabel(viewer),

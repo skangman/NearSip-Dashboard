@@ -1,6 +1,16 @@
 // @ts-nocheck
 
-import type { Viewer } from "@/lib/auth-types";
+import {
+  ROLE_LABELS,
+  type ManagedUser,
+  type Viewer,
+} from "@/lib/auth-types";
+import {
+  DASHBOARD_MENUS,
+  OVERALL_DASHBOARD_MENUS,
+  loadUserMenuPermissions,
+  saveUserMenuPermissions,
+} from "@/lib/menu-access";
 
 let activeController = null;
 
@@ -17,6 +27,7 @@ export function showRealtimeDashboard() {
 export function mountDashboard(
   onModeChange: (mode: DashboardMode) => void,
   viewer: Viewer,
+  managedUsers: ManagedUser[],
 ) {
 const PROVINCES={
   "กรุงเทพมหานคร":["Siam Social Demo","Thonglor Pulse Demo","RCA Connect Demo","Silom Afterdark Demo"],
@@ -26,10 +37,6 @@ const PROVINCES={
   "ขอนแก่น":["Kaen Pulse Demo","Ton Koon Loft Demo","Mor Lam Mood Demo","Isan Beat Demo"],
   "อุดรธานี":["UD Twilight Demo","Rim Nong Bar Demo","Soda Lane Demo","North Moon Demo"]
 };
-const OVERALL_NAV=[
-  ["executive","Executive Overview"],["partners","Partners & Geography"],["users","Users & Demographics"],
-  ["engagement","Engagement & Retention"],["time","Time & Night Pattern"],["nsc","NSC & Revenue"],["merchant","Merchant Success"]
-];
 const COMPARES={
   tonight:[["lastnight","คืนก่อน"],["avg7","ค่าเฉลี่ย 7 วัน"],["avg30","ค่าเฉลี่ย 30 วัน"]],
   today:[["lastnight","คืนก่อน"],["lastweek","สัปดาห์ก่อน"],["avg7","ค่าเฉลี่ย 7 วัน"]],
@@ -44,13 +51,29 @@ const initialMode=document.getElementById("realtimeBtn")?.getAttribute("aria-pre
 const authorizedProvince=viewer.province&&PROVINCES[viewer.province]?viewer.province:"กรุงเทพมหานคร";
 const authorizedVenue=viewer.venue&&PROVINCES[authorizedProvince].includes(viewer.venue)?viewer.venue:PROVINCES[authorizedProvince][0];
 const initialScope=viewer.role==="admin"?{level:"country",province:"กรุงเทพมหานคร",venue:"Siam Social Demo"}:viewer.role==="province"?{level:"province",province:authorizedProvince,venue:authorizedVenue}:{level:"venue",province:authorizedProvince,venue:authorizedVenue};
+const permissionUsers=viewer.role==="admin"?managedUsers:[viewer];
+let userMenuPermissions=loadUserMenuPermissions(permissionUsers);
 const state={
   mode:initialMode,page:"executive",...initialScope,
   period:"month",compare:"lastmonth",businessNight:"18:00–02:00",
   execTrend:"users",topMetric:"users",provinceMetric:"users",segmentMetric:"frequent",
   engageTab:"cheers",timeMetric:"users",granularity:"30m",nscTab:"nsc",
-  revenueTrend:"daily",revenueRank:"feature",merchantSort:"lastAccess"
+  revenueTrend:"daily",revenueRank:"feature",merchantSort:"lastAccess",
+  permissionSearch:"",permissionUserId:""
 };
+function canAccessMenu(menuId){return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)}
+function accessibleOverallMenus(){return OVERALL_DASHBOARD_MENUS.filter(menu=>canAccessMenu(menu.id))}
+function ensureAccessibleView(){
+  const overallMenus=accessibleOverallMenus(),canViewRealtime=canAccessMenu("realtime");
+  if(state.mode==="realtime"&&!canViewRealtime){state.mode="overall";state.page=overallMenus[0]?.id||"executive"}
+  if(state.mode==="overall"){
+    if(state.page==="settings"&&viewer.role==="admin")return;
+    if(!canAccessMenu(state.page)){
+      if(overallMenus.length)state.page=overallMenus[0].id;
+      else if(canViewRealtime)state.mode="realtime"
+    }
+  }
+}
 function enforceViewerScope(){
   if(viewer.role==="admin")return;
   state.province=authorizedProvince;
@@ -430,10 +453,56 @@ function realtimePage(d,p){
   `)}
   `
 }
+function escapeHtml(value){return String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[char])}
+function adminSettingsPage(){
+  const configurableUsers=managedUsers.filter(user=>user.role!=="admin"),selectedUser=configurableUsers.find(user=>user.id===state.permissionUserId)||configurableUsers[0];
+  if(!selectedUser)return`${hero("Users & Menu Access","ค้นหาและกำหนดเมนูที่แต่ละบัญชีเข้าใช้งานได้","0 บัญชี")}<div class="empty-state access-empty-state"><h3>ยังไม่มี User ที่ตั้งค่าสิทธิ์ได้</h3><p>เมื่อมีบัญชีผู้ใช้ รายชื่อจะแสดงในหน้านี้โดยอัตโนมัติ</p></div>`;
+  state.permissionUserId=selectedUser.id;
+  const getUserSearchText=user=>[user.displayName,user.username,ROLE_LABELS[user.role],user.scope].join(" ").toLocaleLowerCase("th-TH"),query=state.permissionSearch.trim().toLocaleLowerCase("th-TH"),visibleUsers=configurableUsers.filter(user=>getUserSearchText(user).includes(query));
+  const userOptions=configurableUsers.map(user=>{
+    const safeUserId=escapeHtml(user.id),searchText=escapeHtml(getUserSearchText(user));
+    return`<button type="button" class="permission-user-option ${user.id===selectedUser.id?"active":""}" data-permission-user-select="${safeUserId}" data-search-text="${searchText}" ${visibleUsers.includes(user)?"":"hidden"}>
+      <span><strong>${escapeHtml(user.displayName)}</strong><small>@${escapeHtml(user.username)}</small><small>${escapeHtml(user.scope)}</small></span>
+      <span class="admin-role-badge role-${user.role}">${ROLE_LABELS[user.role]}</span>
+    </button>`
+  }).join("");
+  const enabledMenus=userMenuPermissions[selectedUser.id]||[],safeUserId=escapeHtml(selectedUser.id);
+  return`${hero("Users & Menu Access","ค้นหา เลือก User และกำหนดเมนูที่บัญชีนั้นเข้าใช้งานได้",`${configurableUsers.length} บัญชี`)}
+    <div class="permission-section-head"><div><h3>ตั้งค่าสิทธิ์ราย User</h3><p>ค้นหาจากชื่อ Username Role หรือ Scope แล้วเลือกบัญชีที่ต้องการตั้งค่า</p></div></div>
+    <div class="permission-manager">
+      <section class="permission-user-browser" aria-label="ค้นหา User">
+        <div class="permission-search-head"><label for="permissionUserSearch">ค้นหา User</label><small id="permissionSearchCount">${visibleUsers.length} จาก ${configurableUsers.length}</small></div>
+        <input id="permissionUserSearch" type="search" value="${escapeHtml(state.permissionSearch)}" placeholder="ชื่อ, Username, Role หรือ Scope" autocomplete="off">
+        <div class="permission-user-results" id="permissionUserResults">${userOptions}</div>
+        <div class="permission-search-empty" id="permissionSearchEmpty" ${visibleUsers.length?"hidden":""}>ไม่พบ User ที่ตรงกับคำค้นหา</div>
+      </section>
+      <section class="permission-card permission-selected-user" data-permission-user="${safeUserId}">
+      <div class="permission-card-head">
+        <div>
+          <div class="permission-user-meta"><span class="admin-role-badge role-${selectedUser.role}">${ROLE_LABELS[selectedUser.role]}</span><span>@${escapeHtml(selectedUser.username)}</span></div>
+          <h3>${escapeHtml(selectedUser.displayName)}</h3><p>${escapeHtml(selectedUser.scope)}</p>
+        </div>
+        <strong>${enabledMenus.length}/${DASHBOARD_MENUS.length} เมนู</strong>
+      </div>
+      <div class="permission-list">
+        ${DASHBOARD_MENUS.map(menu=>`<label class="permission-option" for="permission-${safeUserId}-${menu.id}">
+          <span><b>${menu.label}</b><small>${menu.mode==="realtime"?"โหมด Real-time":"เมนู Overall"}</small></span>
+          <input id="permission-${safeUserId}-${menu.id}" type="checkbox" role="switch" data-menu-permission data-user-id="${safeUserId}" data-menu-id="${menu.id}" ${enabledMenus.includes(menu.id)?"checked":""}>
+        </label>`).join("")}
+      </div>
+      </section>
+    </div>`
+}
+function noMenuAccessPage(){return`${hero("ไม่มีสิทธิ์เข้าถึงเมนู","บัญชีนี้ยังไม่ได้รับสิทธิ์สำหรับ Dashboard","ติดต่อผู้ดูแลระบบ")}
+  <div class="empty-state access-empty-state"><h3>ไม่พบเมนูที่ได้รับอนุญาต</h3><p>Admin สามารถเปิดสิทธิ์ให้บัญชี @${escapeHtml(viewer.username)} ได้จากเมนู Users & Menu Access</p></div>`}
+function showDashboardToast(message){const toast=document.getElementById("toast");toast.textContent=message;toast.classList.add("show");setTimeout(()=>toast.classList.remove("show"),2200)}
+function updateNavOverflow(){const nav=document.getElementById("mainNav");if(!nav)return;const maxScroll=Math.max(0,nav.scrollWidth-nav.clientWidth);nav.classList.toggle("can-scroll-left",nav.scrollLeft>1);nav.classList.toggle("can-scroll-right",nav.scrollLeft<maxScroll-1)}
 function renderNav(){
-  if(state.mode==="realtime"){document.getElementById("mainNav").innerHTML="";return}
-  document.getElementById("mainNav").innerHTML=OVERALL_NAV.map(x=>`<button data-page="${x[0]}" class="${state.page===x[0]?"active":""}">${x[1]}</button>`).join("");
-  document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render()})
+  if(state.mode==="realtime"){document.getElementById("mainNav").innerHTML="";updateNavOverflow();return}
+  const navItems=accessibleOverallMenus().map(menu=>[menu.id,menu.label]);
+  if(viewer.role==="admin")navItems.push(["settings","Users & Menu Access"]);
+  document.getElementById("mainNav").innerHTML=navItems.map(([id,label])=>`<button type="button" data-page="${id}" class="${state.page===id?"active":""}">${label}</button>`).join("");
+  document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render()});requestAnimationFrame(updateNavOverflow)
 }
 function bindControls(){
   const ids={
@@ -446,6 +515,26 @@ function bindControls(){
   document.querySelectorAll("[data-gran]").forEach(b=>b.onclick=()=>{state.granularity=b.dataset.gran;render()});
   document.querySelectorAll("[data-nsctab]").forEach(b=>b.onclick=()=>{state.nscTab=b.dataset.nsctab;render()});
   document.querySelectorAll("[data-revtrend]").forEach(b=>b.onclick=()=>{state.revenueTrend=b.dataset.revtrend;render()});
+  const permissionSearch=document.getElementById("permissionUserSearch");
+  if(permissionSearch){
+    const filterPermissionUsers=()=>{
+      const query=permissionSearch.value.trim().toLocaleLowerCase("th-TH"),userOptions=[...document.querySelectorAll("[data-permission-user-select]")];let visibleCount=0;
+      state.permissionSearch=permissionSearch.value;
+      userOptions.forEach(option=>{const visible=option.dataset.searchText.includes(query);option.hidden=!visible;if(visible)visibleCount++});
+      document.getElementById("permissionSearchEmpty").hidden=visibleCount!==0;
+      document.getElementById("permissionSearchCount").textContent=`${visibleCount} จาก ${userOptions.length}`
+    };
+    permissionSearch.oninput=filterPermissionUsers;filterPermissionUsers()
+  }
+  document.querySelectorAll("[data-permission-user-select]").forEach(button=>button.onclick=()=>{state.permissionUserId=button.dataset.permissionUserSelect;render()});
+  document.querySelectorAll("[data-menu-permission]").forEach(input=>input.onchange=()=>{
+    const userId=input.dataset.userId,menuId=input.dataset.menuId,nextMenus=new Set(userMenuPermissions[userId]||[]);
+    if(input.checked)nextMenus.add(menuId);else nextMenus.delete(menuId);
+    userMenuPermissions={...userMenuPermissions,[userId]:DASHBOARD_MENUS.map(menu=>menu.id).filter(id=>nextMenus.has(id))};
+    const saved=saveUserMenuPermissions(userMenuPermissions),targetUser=managedUsers.find(user=>user.id===userId);
+    render();
+    showDashboardToast(saved?`บันทึกสิทธิ์ ${targetUser?.displayName||"ผู้ใช้"} แล้ว`:"อัปเดตสิทธิ์ชั่วคราวแล้ว แต่ browser ไม่อนุญาตให้บันทึก")
+  });
   document.querySelectorAll(".chart-dot").forEach(dot=>{
     const show=()=>{const wrap=dot.closest(".chart-wrap"),box=wrap.querySelector(".chart-value");if(box)box.textContent=`${dot.dataset.series} · ${dot.dataset.label}: ${fmt(dot.dataset.value)}`};
     dot.addEventListener("click",show);dot.addEventListener("focus",show)
@@ -455,13 +544,22 @@ function render(){
   const content=document.getElementById("content");
   try{
     enforceViewerScope();
-    const d=aggregate("current"),p=aggregate("prior");renderNav();
-    if(!d.rows||d.rows.length===0){
-      content.innerHTML=`<div class="empty-state"><h3>ไม่มีข้อมูลสำหรับ Scope นี้</h3><p>ลองเปลี่ยนจังหวัด ร้าน หรือช่วงเวลา โดยค่าตัวกรองเดิมจะยังคงอยู่</p></div>`;
-      return
+    const previousMode=state.mode;ensureAccessibleView();renderNav();syncModeControls();
+    if(previousMode!==state.mode)onModeChange(state.mode);
+    const hasAnyMenu=viewer.role==="admin"||accessibleOverallMenus().length>0||canAccessMenu("realtime");
+    if(!hasAnyMenu){
+      content.innerHTML=noMenuAccessPage()
+    }else if(state.mode==="overall"&&state.page==="settings"&&viewer.role==="admin"){
+      content.innerHTML=adminSettingsPage()
+    }else{
+      const d=aggregate("current"),p=aggregate("prior");
+      if(!d.rows||d.rows.length===0){
+        content.innerHTML=`<div class="empty-state"><h3>ไม่มีข้อมูลสำหรับ Scope นี้</h3><p>ลองเปลี่ยนจังหวัด ร้าน หรือช่วงเวลา โดยค่าตัวกรองเดิมจะยังคงอยู่</p></div>`;
+        return
+      }
+      const pages={executive:execPage,partners:partnersPage,users:usersPage,engagement:engagementPage,time:(a,b)=>timePage(a,b,false),nsc:nscRevenuePage,merchant:merchantPage};
+      content.innerHTML=state.mode==="realtime"?realtimePage(d,p):pages[state.page](d,p)
     }
-    const pages={executive:execPage,partners:partnersPage,users:usersPage,engagement:engagementPage,time:(a,b)=>timePage(a,b,false),nsc:nscRevenuePage,merchant:merchantPage};
-    content.innerHTML=state.mode==="realtime"?realtimePage(d,p):pages[state.page](d,p);
     document.getElementById("contextLine").innerHTML=`<span><strong>${scopeName()}</strong></span><span>Mode: <strong>${state.mode==="overall"?"Overall":"Real-time"}</strong></span><span>Period: <strong>${state.mode==="realtime"?"Current Business Night":periodLabel()}</strong></span><span>Comparison: <strong>${state.mode==="realtime"?"คืนเทียบเคียง":compareLabel()}</strong></span><span>Business Night: <strong>${state.businessNight}</strong></span><span><span class="status-dot"></span>Last Updated: <strong>3 ส.ค. 2026 15:53 ICT</strong></span><span><strong></strong></span>`;
     document.getElementById("mobileScope").textContent=scopeName();
     document.getElementById("filterCount").textContent=state.level==="country"?4:state.level==="province"?5:6;
@@ -492,9 +590,15 @@ function loadingUpdate(fn){
 }
 function openDrawer(){document.body.classList.add("drawer-open");document.getElementById("filterOpen").setAttribute("aria-expanded","true")}
 function closeDrawer(){document.body.classList.remove("drawer-open");document.getElementById("filterOpen").setAttribute("aria-expanded","false")}
-function syncModeControls(){const realtime=state.mode==="realtime";document.getElementById("overallBtn").classList.toggle("active",!realtime);document.getElementById("overallBtn").setAttribute("aria-pressed",String(!realtime));document.getElementById("realtimeBtn").classList.toggle("active",realtime);document.getElementById("realtimeBtn").setAttribute("aria-pressed",String(realtime));document.getElementById("periodSelect").disabled=realtime;document.getElementById("compareSelect").disabled=realtime}
-function showOverall(){state.mode="overall";state.page="executive";syncModeControls();onModeChange("overall");render()}
-function showRealtime(){state.mode="realtime";syncModeControls();onModeChange("realtime");render()}
+function syncModeControls(){
+  const realtime=state.mode==="realtime",canViewOverall=viewer.role==="admin"||accessibleOverallMenus().length>0,canViewRealtime=canAccessMenu("realtime"),overallButton=document.getElementById("overallBtn"),realtimeButton=document.getElementById("realtimeBtn");
+  document.querySelector(".mode").classList.toggle("hidden",!canViewOverall&&!canViewRealtime);
+  overallButton.hidden=!canViewOverall;overallButton.disabled=!canViewOverall;overallButton.classList.toggle("active",!realtime&&canViewOverall);overallButton.setAttribute("aria-pressed",String(!realtime&&canViewOverall));
+  realtimeButton.hidden=!canViewRealtime;realtimeButton.disabled=!canViewRealtime;realtimeButton.classList.toggle("active",realtime&&canViewRealtime);realtimeButton.setAttribute("aria-pressed",String(realtime&&canViewRealtime));
+  document.getElementById("periodSelect").disabled=realtime;document.getElementById("compareSelect").disabled=realtime
+}
+function showOverall(){const firstMenu=accessibleOverallMenus()[0];if(viewer.role!=="admin"&&!firstMenu)return;state.mode="overall";state.page=viewer.role==="admin"?"executive":firstMenu.id;syncModeControls();onModeChange("overall");render()}
+function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render()}
 const controller={showOverall,showRealtime};
 activeController=controller;
 document.getElementById("filterOpen").onclick=openDrawer;document.getElementById("filterClose").onclick=closeDrawer;document.getElementById("overlay").onclick=closeDrawer;
@@ -504,18 +608,23 @@ document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venu
 document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value;state.compare=COMPARES[state.period][0][0];populate();render()}
 document.getElementById("compareSelect").onchange=e=>{state.compare=e.target.value;render()}
 document.getElementById("nightSelect").onchange=e=>{state.businessNight=e.target.value;render()}
-document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"month",compare:"lastmonth",businessNight:"18:00–02:00"});document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="month";document.getElementById("nightSelect").value="18:00–02:00";syncModeControls();onModeChange("overall");populate();render();closeDrawer()}
-document.getElementById("exportBtn").onclick=()=>{const t=document.getElementById("toast");t.textContent="แสดงปุ่ม Export ตามสิทธิ์ แต่ยังไม่ทำ Export จริง";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)}
+document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"month",compare:"lastmonth",businessNight:"18:00–02:00"});document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="month";document.getElementById("nightSelect").value="18:00–02:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer()}
+document.getElementById("exportBtn").onclick=()=>showDashboardToast("แสดงปุ่ม Export ตามสิทธิ์ แต่ยังไม่ทำ Export จริง")
 const handleOrientationChange=()=>setTimeout(()=>render(),120);
 const handleKeyDown=e=>{if(e.key==="Escape")closeDrawer()};
+const mainNav=document.getElementById("mainNav"),handleNavWheel=event=>{const maxScroll=Math.max(0,mainNav.scrollWidth-mainNav.clientWidth);if(maxScroll<=1)return;const delta=Math.abs(event.deltaX)>Math.abs(event.deltaY)?event.deltaX:event.deltaY,nextScroll=Math.min(maxScroll,Math.max(0,mainNav.scrollLeft+delta));if(nextScroll!==mainNav.scrollLeft){event.preventDefault();mainNav.scrollLeft=nextScroll;updateNavOverflow()}},handleNavResize=()=>updateNavOverflow();
 window.addEventListener("orientationchange",handleOrientationChange);
 window.addEventListener("keydown",handleKeyDown);
-syncModeControls();onModeChange(state.mode);
+window.addEventListener("resize",handleNavResize);
+mainNav.addEventListener("scroll",updateNavOverflow,{passive:true});mainNav.addEventListener("wheel",handleNavWheel,{passive:false});
+ensureAccessibleView();syncModeControls();onModeChange(state.mode);
 populate();render();
 
 return()=>{
   window.removeEventListener("orientationchange",handleOrientationChange);
   window.removeEventListener("keydown",handleKeyDown);
+  window.removeEventListener("resize",handleNavResize);
+  mainNav.removeEventListener("scroll",updateNavOverflow);mainNav.removeEventListener("wheel",handleNavWheel);
   if(activeController===controller)activeController=null;
 };
 }

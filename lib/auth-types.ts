@@ -9,6 +9,13 @@ export type Viewer = {
   venue?: string;
 };
 
+export type ManagedUser = Pick<
+  Viewer,
+  "id" | "username" | "displayName" | "role"
+> & {
+  scope: string;
+};
+
 export type PublicMockAccount = {
   username: string;
   password: string;

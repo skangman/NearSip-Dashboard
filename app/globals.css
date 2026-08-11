@@ -118,9 +118,13 @@ button{cursor:pointer}
 .context strong{color:var(--text)}
 .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--green)}
 .nav{
-  display:flex;gap:7px;overflow:auto;padding:11px 2px 3px;scrollbar-width:thin;
-  scroll-snap-type:x proximity
+  display:flex;gap:7px;overflow:auto;padding:11px 2px 3px;scrollbar-width:none;
+  -ms-overflow-style:none;scroll-snap-type:x proximity
 }
+.nav::-webkit-scrollbar{display:none}
+.nav.can-scroll-right{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 28px),transparent 100%)}
+.nav.can-scroll-left:not(.can-scroll-right){-webkit-mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 100%);mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 100%)}
+.nav.can-scroll-left.can-scroll-right{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%)}
 .nav button{
   white-space:nowrap;border:1px solid transparent;scroll-snap-align:start
 }
@@ -473,8 +477,30 @@ tbody tr:hover td{background:rgba(43,217,247,.045)}
 .role-province{color:#ddd4ff;background:rgba(140,108,255,.16)}
 .role-owner{color:#baf4d9;background:rgba(63,212,155,.13)}
 
+.admin-role-badge{display:inline-flex;width:max-content;padding:5px 8px;border-radius:8px;font-size:9px;font-weight:900;white-space:nowrap}
+.permission-section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:20px 0 10px}.permission-section-head h3{margin:0;font-size:18px}.permission-section-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.permission-manager{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:14px;align-items:start}
+.permission-user-browser{padding:14px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(21,37,66,.96),rgba(15,27,51,.96));box-shadow:var(--shadow)}
+.permission-search-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.permission-search-head label{font-size:11px;font-weight:850}.permission-search-head small{color:var(--muted);font-size:9px}
+.permission-user-browser>input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:#101b33;color:var(--text)}.permission-user-browser>input::placeholder{color:#74829e}.permission-user-browser>input:focus{border-color:rgba(43,217,247,.65)}
+.permission-user-results{display:flex;flex-direction:column;gap:7px;max-height:580px;margin-top:10px;overflow:auto}
+.permission-user-option{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:10px;text-align:left;border:1px solid var(--line);border-radius:12px;background:#101b33;color:var(--text)}.permission-user-option:hover{border-color:rgba(43,217,247,.32)}.permission-user-option.active{border-color:rgba(43,217,247,.58);background:rgba(43,217,247,.09)}.permission-user-option[hidden]{display:none}
+.permission-user-option>span:first-child{min-width:0}.permission-user-option strong,.permission-user-option small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.permission-user-option strong{font-size:11px}.permission-user-option small{margin-top:3px;color:var(--muted);font-size:9px}
+.permission-search-empty{margin-top:10px;padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:10px;text-align:center}.permission-search-empty[hidden]{display:none}
+.permission-card{padding:16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(21,37,66,.96),rgba(15,27,51,.96));box-shadow:var(--shadow)}
+.permission-selected-user{min-width:0}
+.permission-card-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}.permission-card-head h3{margin:9px 0 0;font-size:15px}.permission-card-head p{margin:4px 0 0;color:var(--muted);font-size:10px}.permission-card-head>strong{color:var(--cyan);font-size:11px;white-space:nowrap}
+.permission-user-meta{display:flex;align-items:center;gap:8px}.permission-user-meta>span:last-child{color:var(--muted);font-size:10px}
+.permission-list{display:flex;flex-direction:column;gap:7px}
+.permission-option{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:#101b33;cursor:pointer}
+.permission-option:hover{border-color:rgba(43,217,247,.32)}.permission-option>span{min-width:0}.permission-option b,.permission-option small{display:block}.permission-option b{font-size:11px}.permission-option small{margin-top:4px;color:var(--muted);font-size:9px}
+.permission-option input{appearance:none;display:block;flex:0 0 40px;width:40px;height:23px;min-height:0;margin:0;padding:2px;border:1px solid #425778;border-radius:999px;background:#17243e;cursor:pointer;transition:.15s ease}
+.permission-option input::before{content:"";display:block;width:17px;height:17px;border-radius:50%;background:#8391a9;transition:.15s ease}.permission-option input:checked{border-color:transparent;background:linear-gradient(135deg,var(--purple),var(--blue))}.permission-option input:checked::before{background:#fff;transform:translateX(17px)}.permission-option input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.access-empty-state{margin-top:16px}
+
 @media(max-width:1023px){
   .viewer-menu{margin-left:0}
+  .permission-manager{grid-template-columns:1fr}.permission-user-results{max-height:280px}
   .login-page{grid-template-columns:1fr;gap:20px;max-width:720px;padding-top:28px;padding-bottom:40px}
   .login-intro{min-height:560px;padding:34px}.login-intro-copy{margin:65px 0 42px}
   .login-panel{min-height:0}
@@ -482,6 +508,7 @@ tbody tr:hover td{background:rgba(43,217,247,.045)}
 @media(max-width:767px){
   .viewer-menu{width:100%;justify-content:space-between;padding:8px 0 2px;border-top:1px solid rgba(42,61,99,.55)}
   .viewer-copy{align-items:flex-start}.viewer-copy strong,.viewer-copy small{max-width:220px}
+  .permission-card{padding:14px}.permission-section-head{align-items:flex-start;flex-direction:column}
   .login-page{padding:18px 14px 30px;gap:18px}
   .login-intro{min-height:0;padding:22px;border-radius:22px}
   .login-logo{width:42px;height:42px;border-radius:13px}
