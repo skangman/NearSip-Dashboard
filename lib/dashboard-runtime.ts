@@ -45,7 +45,8 @@ const COMPARES={
   month:[["lastmonth","เดือนก่อน"],["lastyear","ปีก่อน"]],
   quarter:[["lastmonth","เดือนก่อน"],["lastyear","ปีก่อน"]],
   year:[["lastyear","ปีก่อน"]],
-  custom:[["lastmonth","เดือนก่อน"],["lastyear","ปีก่อน"],["avg30","ค่าเฉลี่ย 30 วัน"]]
+  custom:[["lastmonth","เดือนก่อน"],["lastyear","ปีก่อน"],["avg30","ค่าเฉลี่ย 30 วัน"]],
+  alltime:[["lastyear","ปีก่อน"]]
 };
 const initialMode=document.getElementById("realtimeBtn")?.getAttribute("aria-pressed")==="true"?"realtime":"overall";
 const authorizedProvince=viewer.province&&PROVINCES[viewer.province]?viewer.province:"กรุงเทพมหานคร";
@@ -88,7 +89,8 @@ async function loadRealFeed(){
 // list/count user เลย ดูจุดใช้งานใน execPage() — ประมาณ period ที่เลือกเป็นจำนวนวันคร่าวๆ
 let realUserStats=null;
 function periodToDays(period){
-  return {tonight:1,today:1,"7d":7,"30d":30,month:30,quarter:90,year:365,custom:30}[period]||30;
+  // alltime: ไม่มี "ไม่จำกัดวัน" ใน SQL interval เลยใช้เลขใหญ่ๆ (100 ปี) แทนแบบ "ทั้งหมด" ในทางปฏิบัติ
+  return {tonight:1,today:1,"7d":7,"30d":30,month:30,quarter:90,year:365,custom:30,alltime:36500}[period]||30;
 }
 // หา storeId ของร้านที่เลือกอยู่ตอนนี้ (ถ้ามี) — ใช้กรองข้อมูลจริงเฉพาะร้านนั้น ดูจุดใช้งานใน loadRealUserStats()
 // กรองได้เฉพาะตอน role admin + level="venue" + เลือกร้านจริง (ไม่ใช่ร้าน mock จาก PROVINCES)
@@ -148,7 +150,7 @@ function fmt(n){return new Intl.NumberFormat("th-TH").format(Math.round(Number(n
 function money(n){return "฿"+new Intl.NumberFormat("th-TH",{maximumFractionDigits:1,notation:Math.abs(n)>=1000000?"compact":"standard"}).format(Number(n)||0)}
 function pct(n){return (n>=0?"+":"")+Number(n).toFixed(1)+"%"}
 function pp(n){return (n>=0?"+":"")+Number(n).toFixed(1)+" pp"}
-function scale(){return {tonight:1,today:1.15,"7d":5.3,"30d":22,month:22,quarter:66,year:255,custom:35}[state.period]}
+function scale(){return {tonight:1,today:1.15,"7d":5.3,"30d":22,month:22,quarter:66,year:255,custom:35,alltime:255}[state.period]}
 function allVenues(){return Object.entries(PROVINCES).flatMap(([province,venues])=>venues.map(venue=>({province,venue})))}
 function entities(){if(state.level==="country")return allVenues();if(state.level==="province")return PROVINCES[state.province].map(venue=>({province:state.province,venue}));return[{province:state.province,venue:state.venue}]}
 function scopeName(){if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;return state.venue+" · "+state.province}
@@ -832,7 +834,9 @@ function syncModeControls(){
   document.querySelector(".mode").classList.toggle("hidden",!canViewOverall&&!canViewRealtime);
   overallButton.hidden=!canViewOverall;overallButton.disabled=!canViewOverall;overallButton.classList.toggle("active",!realtime&&canViewOverall);overallButton.setAttribute("aria-pressed",String(!realtime&&canViewOverall));
   realtimeButton.hidden=!canViewRealtime;realtimeButton.disabled=!canViewRealtime;realtimeButton.classList.toggle("active",realtime&&canViewRealtime);realtimeButton.setAttribute("aria-pressed",String(realtime&&canViewRealtime));
-  document.getElementById("periodSelect").disabled=realtime;document.getElementById("compareSelect").disabled=realtime
+  // เดิม: document.getElementById("periodSelect").disabled=realtime; — ล็อกไว้ตอน Real-time เพราะ mock คิดว่าดูได้แค่ "คืนนี้"
+  // ข้อมูลจริงเลือกช่วงวันได้จริง (periodToDays) เลยเปิดให้เลือกได้แม้อยู่โหมด Real-time ตามที่ขอ — compareSelect ยังล็อกไว้เหมือนเดิม (ไม่เกี่ยวกับข้อมูลจริง)
+  document.getElementById("compareSelect").disabled=realtime
 }
 function showOverall(){const firstMenu=accessibleOverallMenus()[0];if(viewer.role!=="admin"&&!firstMenu)return;state.mode="overall";state.page=viewer.role==="admin"?"executive":firstMenu.id;syncModeControls();onModeChange("overall");render()}
 function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render()}

@@ -155,6 +155,7 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
                   <option value="quarter">ไตรมาส</option>
                   <option value="year">ปีนี้</option>
                   <option value="custom">กำหนดเอง</option>
+                  <option value="alltime">ทั้งหมด</option>
                 </select>
               </div>
               <div className="field">
