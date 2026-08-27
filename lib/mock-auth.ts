@@ -25,29 +25,29 @@ const MOCK_ACCOUNTS: readonly MockAccount[] = [
       role: "admin",
     },
   },
-  {
-    password: "province123",
-    sessionId: "nsp_prv_4b88d1a7f3164e80a2b21b95ac796e43",
-    viewer: {
-      id: "viewer-province-bkk",
-      username: "province_bkk",
-      displayName: "Bangkok Province Team",
-      role: "province",
-      province: "กรุงเทพมหานคร",
-    },
-  },
-  {
-    password: "owner123",
-    sessionId: "nsp_own_96c2452e4f1f45f19dced4167e0c28ca",
-    viewer: {
-      id: "viewer-owner-siam",
-      username: "owner_siam",
-      displayName: "Siam Social Demo Owner",
-      role: "owner",
-      province: "กรุงเทพมหานคร",
-      venue: "Siam Social Demo",
-    },
-  },
+  // {
+  //   password: "province123",
+  //   sessionId: "nsp_prv_4b88d1a7f3164e80a2b21b95ac796e43",
+  //   viewer: {
+  //     id: "viewer-province-bkk",
+  //     username: "province_bkk",
+  //     displayName: "Bangkok Province Team",
+  //     role: "province",
+  //     province: "กรุงเทพมหานคร",
+  //   },
+  // },
+  // {
+  //   password: "owner123",
+  //   sessionId: "nsp_own_96c2452e4f1f45f19dced4167e0c28ca",
+  //   viewer: {
+  //     id: "viewer-owner-siam",
+  //     username: "owner_siam",
+  //     displayName: "Siam Social Demo Owner",
+  //     role: "owner",
+  //     province: "กรุงเทพมหานคร",
+  //     venue: "Siam Social Demo",
+  //   },
+  // },
 ];
 
 export function getPublicMockAccounts(): PublicMockAccount[] {

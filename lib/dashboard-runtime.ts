@@ -67,8 +67,32 @@ async function loadRealStores(){
     if(unmounted)return;
     realStores=(json.stores||[]).filter(s=>s.status==="ACTIVE");
     populate();render();
+    loadRealStoreStats();
   }catch(err){
     console.warn("Failed to load real store list, falling back to mock PROVINCES",err);
+  }
+}
+// สถิติจริงแยกรายร้าน (เรียก /api/user-stats?storeId=... วนทีละร้าน) — ใช้ทำ Top Performer ranking
+// จากข้อมูลจริงแทน mock ใน execPage() มีแค่ users/newUsers/engagement เพราะเป็น metric เดียวที่ DB
+// รองรับต่อร้านจริง (Repeat/NSC/รายได้ ไม่มี table ให้ query เลย จึงไม่ใส่)
+let realStoreStats=[];
+async function loadRealStoreStats(){
+  if(!realStores.length)return;
+  try{
+    const days=periodToDays(state.period);
+    const results=await Promise.all(realStores.map(async s=>{
+      try{
+        const res=await fetch(`/api/user-stats?days=${days}&storeId=${encodeURIComponent(s.storeId)}`);
+        if(!res.ok)return null;
+        const json=await res.json();
+        return{venue:s.name||s.locationName||s.storeId,uniqueUsers:json.uniqueUsers||0,newUsers:json.newUsers||0,engagement:(json.cheersTotal||0)+(json.chatsTotal||0)};
+      }catch{return null}
+    }));
+    if(unmounted)return;
+    realStoreStats=results.filter(Boolean);
+    render();
+  }catch(err){
+    console.warn("Failed to load per-store real stats",err);
   }
 }
 // ร้านจริง/feed จริงจาก backend ผ่าน /api/feed — เสริมเพิ่ม (ไม่แทนที่ mock อื่นๆ) ดูจุดใช้งานใน execPage()
@@ -116,7 +140,8 @@ async function loadRealUserStats(){
 const state={
   mode:initialMode,page:"executive",...initialScope,
   // เดิม: businessNight:"18:00–02:00" — option นี้ถูกเอาออกจาก nightSelect แล้ว (เหลือแค่ช่วงรายชั่วโมง) เปลี่ยน default ให้ตรงกัน
-  period:"month",compare:"lastmonth",businessNight:"18:00–19:00",
+  // เดิม: period:"month",compare:"lastmonth" — เปลี่ยน default ช่วงเวลาเป็น "ทั้งหมด" ตามที่ขอ (compare ต้องตรงกับ COMPARES.alltime)
+  period:"alltime",compare:"lastyear",businessNight:"18:00–19:00",
   execTrend:"users",topMetric:"users",provinceMetric:"users",segmentMetric:"frequent",
   engageTab:"cheers",timeMetric:"users",granularity:"30m",nscTab:"nsc",
   revenueTrend:"daily",revenueRank:"feature",merchantSort:"lastAccess",
@@ -142,7 +167,8 @@ function enforceViewerScope(){
     state.level="venue";state.venue=authorizedVenue;return
   }
   if(state.level!=="province"&&state.level!=="venue")state.level="province";
-  if(!PROVINCES[authorizedProvince].includes(state.venue))state.venue=authorizedVenue
+  // "ALL" (ตัวเลือก "ทั้งหมด" ใน venueSelect) เป็นค่าที่ถูกต้องด้วย ไม่ต้องรีเซ็ตกลับเป็นร้านเดียว
+  if(state.venue!=="ALL"&&!PROVINCES[authorizedProvince].includes(state.venue))state.venue=authorizedVenue
 }
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h+=(h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)}return Math.abs(h>>>0)}
 function rng(seed){let t=seed>>>0;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^t>>>15,1|t);r^=r+Math.imul(r^r>>>7,61|r);return((r^r>>>14)>>>0)/4294967296}}
@@ -152,8 +178,20 @@ function pct(n){return (n>=0?"+":"")+Number(n).toFixed(1)+"%"}
 function pp(n){return (n>=0?"+":"")+Number(n).toFixed(1)+" pp"}
 function scale(){return {tonight:1,today:1.15,"7d":5.3,"30d":22,month:22,quarter:66,year:255,custom:35,alltime:255}[state.period]}
 function allVenues(){return Object.entries(PROVINCES).flatMap(([province,venues])=>venues.map(venue=>({province,venue})))}
-function entities(){if(state.level==="country")return allVenues();if(state.level==="province")return PROVINCES[state.province].map(venue=>({province:state.province,venue}));return[{province:state.province,venue:state.venue}]}
-function scopeName(){if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;return state.venue+" · "+state.province}
+// รายชื่อร้านที่ให้เลือกใน venueSelect ตาม role/scope ปัจจุบัน — แยกไว้เป็น helper เพราะ populate() และ
+// entities() (ตอนเลือก "ทั้งหมด") ต้องใช้ list เดียวกัน
+function venueOptions(){
+  const realVenueNames=realStores.map(s=>s.name||s.locationName||s.storeId).filter(Boolean);
+  return viewer.role==="owner"?[authorizedVenue]:viewer.role==="admin"&&realVenueNames.length?realVenueNames:PROVINCES[state.province];
+}
+function entities(){
+  if(state.level==="country")return allVenues();
+  if(state.level==="province")return PROVINCES[state.province].map(venue=>({province:state.province,venue}));
+  // venue==="ALL": เลือก "ทั้งหมด" ใน venueSelect — รวมข้อมูลทุกร้านในสโคปปัจจุบันแทนร้านเดียว
+  if(state.venue==="ALL")return venueOptions().map(venue=>({province:state.province,venue}));
+  return[{province:state.province,venue:state.venue}]
+}
+function scopeName(){if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;if(state.venue==="ALL")return"ร้านพาร์ทเนอร์ทั้งหมด · "+state.province;return state.venue+" · "+state.province}
 function periodLabel(){return document.querySelector("#periodSelect option:checked")?.textContent||"เดือนนี้"}
 function compareLabel(){return document.querySelector("#compareSelect option:checked")?.textContent||"เดือนก่อน"}
 function change(c,p){return p?((c-p)/p*100):0}
@@ -327,7 +365,20 @@ function execPage(d,p){
   const labels=state.period==="month"?["W1","W2","W3","W4"]:state.period==="today"?["18","20","22","00","02"]:state.period==="7d"?["จ","อ","พ","พฤ","ศ","ส","อา"]:["P1","P2","P3","P4"];
   const curTotal=state.execTrend==="users"?d.unique:d.recognizedRevenue,prevTotal=state.execTrend==="users"?p.unique:p.recognizedRevenue;
   const current=timeSeries(curTotal,labels.length,"exec"),prior=timeSeries(prevTotal,labels.length,"exec-prev");
-  const rank=rankingData(d,state.topMetric),top=rank.rows[0],prov=provinceData(),topProvince=prov.slice().sort((a,b)=>b.growth-a.growth)[0];
+  // Top Performer: ถ้ามี realStoreStats (จริง ต่อร้าน) ใช้ของจริงแทน mock — เหลือแค่ users/newUsers/engagement
+  // เพราะเป็น metric เดียวที่มีข้อมูลจริงรองรับต่อร้าน (Repeat/NSC/รายได้ ไม่มีใน DB เลยตัดออก)
+  const realTopMetrics={users:"ผู้ใช้ NearSip",newUsers:"ผู้ใช้ใหม่",engagement:"Engagement"};
+  const useRealRank=realStoreStats.length>0;
+  const rank=useRealRank
+    ?{label:realTopMetrics[state.topMetric]||realTopMetrics.users,rows:realStoreStats.map(r=>({...r,value:{users:r.uniqueUsers,newUsers:r.newUsers,engagement:r.engagement}[state.topMetric]??r.uniqueUsers})).sort((a,b)=>b.value-a.value)}
+    :rankingData(d,state.topMetric);
+  const top=rank.rows[0],prov=provinceData(),topProvince=prov.slice().sort((a,b)=>b.growth-a.growth)[0];
+  const topMetricOptions=useRealRank
+    ?`<option value="users">ผู้ใช้ NearSip สูงสุด</option><option value="newUsers">ผู้ใช้ใหม่สูงสุด</option><option value="engagement">Engagement สูงสุด</option>`
+    :`<option value="users">ผู้ใช้ NearSip สูงสุด</option><option value="engagement">Engagement สูงสุด</option><option value="engPerUser">Engagement ต่อผู้ใช้สูงสุด</option><option value="repeat">Repeat Rate สูงสุด</option><option value="newUsers">ผู้ใช้ใหม่สูงสุด</option><option value="nsc">NSC Usage สูงสุด</option><option value="nscPerUser">NSC Usage ต่อผู้ใช้สูงสุด</option><option value="revenue">รายได้สูงสุด</option>`;
+  const topPerformerTable=useRealRank
+    ?desktopAndMobileTable(["#","ร้าน",rank.label,"ผู้ใช้ NearSip","ผู้ใช้ใหม่","Engagement"],rank.rows.map((r,i)=>[i+1,r.venue,fmt(r.value),fmt(r.uniqueUsers),fmt(r.newUsers),fmt(r.engagement)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,"จาก DB จริง",fmt(r.value),"",[["ผู้ใช้ NearSip",fmt(r.uniqueUsers)],["ผู้ใช้ใหม่",fmt(r.newUsers)],["Engagement",fmt(r.engagement)]])))
+    :desktopAndMobileTable(["#","ร้าน","จังหวัด",rank.label,"ผู้ใช้","Engagement","Repeat","NSC","รายได้"],rank.rows.map((r,i)=>[i+1,r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),"",[["ผู้ใช้",fmt(r.unique)],["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]])));
   return`${hero("Executive Overview","ภาพรวม NearSip ที่ CEO เข้าใจได้ภายในประมาณ 10 วินาที","Headline 6 KPI · Progressive Disclosure")}
   <div class="grid kpis">
     ${/* เดิม: ${kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")} — คอมเมนต์ไว้เป็น fallback */""}
@@ -349,10 +400,10 @@ function execPage(d,p){
     ${card("แนวโน้มภาพรวม","สลับระหว่างผู้ใช้ NearSip และรายได้ที่รับรู้",`<div class="metric-toolbar"><div class="field"><label for="execTrendSelect">Metric</label><select id="execTrendSelect"><option value="users">ผู้ใช้ NearSip</option><option value="revenue">รายได้ที่รับรู้</option></select></div></div>${lineChart([{name:periodLabel(),values:current},{name:compareLabel(),values:prior}],labels,state.execTrend==="users"?"แนวโน้มผู้ใช้ NearSip":"แนวโน้มรายได้ที่รับรู้",state.execTrend==="users"?"คน":"บาท")}`)}
     ${card("Summary ที่โดดเด่น","แสดงเฉพาะประเด็นจาก Approved Requirements",`<div class="stat-list"><div class="stat"><b>จังหวัดเติบโตสูงสุด</b><p>${topProvince.province} · ${pct(topProvince.growth)}</p></div><div class="stat"><b>ร้านอันดับหนึ่งตาม ${rank.label}</b><p>${top.venue} · ${state.topMetric==="revenue"?money(top.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?top.value.toFixed(1):fmt(top.value)}</p></div><div class="stat"><b>ร้านออนไลน์คืนนี้</b><p>${fmt(d.onlineTonight)} จาก ${fmt(d.partnerStores)} ร้านใน Scope</p></div></div>`)}
   </div>
-  ${/* NOTE: ตารางนี้ยังเป็น mock ทั้งหมด (rank.rows มาจาก rowData()/rankingData() ที่ผูกกับ PROVINCES mock)
-     ตอนนี้มีร้านจริงแค่ 1 ร้าน การจัดอันดับ/เปรียบเทียบหลายร้านยังไม่มีความหมายจริง และ metric ส่วนใหญ่ในตัวเลือก
-     (Repeat, NSC, รายได้) ไม่มีข้อมูลจริงรองรับเลย จึงยังไม่แตะตารางนี้ */""}
-  ${card("Top Performer","Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — มีร้านจริงแค่ 1 ร้าน ไม่พอจะจัดอันดับจริง)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect"><option value="users">ผู้ใช้ NearSip สูงสุด</option><option value="engagement">Engagement สูงสุด</option><option value="engPerUser">Engagement ต่อผู้ใช้สูงสุด</option><option value="repeat">Repeat Rate สูงสุด</option><option value="newUsers">ผู้ใช้ใหม่สูงสุด</option><option value="nsc">NSC Usage สูงสุด</option><option value="nscPerUser">NSC Usage ต่อผู้ใช้สูงสุด</option><option value="revenue">รายได้สูงสุด</option></select></div></div>${desktopAndMobileTable(["#","ร้าน","จังหวัด",rank.label,"ผู้ใช้","Engagement","Repeat","NSC","รายได้"],rank.rows.map((r,i)=>[i+1,r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),"",[["ผู้ใช้",fmt(r.unique)],["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]])))}`)}
+  ${/* Top Performer: ใช้ realStoreStats (จาก /api/user-stats วนต่อร้าน) เมื่อมีร้านจริง — เหลือแค่ users/
+     newUsers/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ตัด Repeat/NSC/รายได้ออกเพราะไม่มี
+     table ให้ query เลย ถ้ายังไม่มีร้านจริง (ยังโหลดไม่เสร็จ/โหลดไม่สำเร็จ) fallback กลับไปใช้ mock เหมือนเดิม */""}
+  ${card("Top Performer",useRealRank?"Ranking table จาก DB จริง ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
   ${realFeed.length?card("Feed จากระบบจริง","ดึงจาก /api/feed ตรงๆ (ไม่ใช่ mock)",`<div class="stat-list">${realFeed.map(f=>`<div class="stat"><b>${f.imageTitleText||(f.feedType==="Global"?"ประกาศทั่วไป":"ประกาศร้าน "+f.storeId)}</b><p>${f.description||""}</p></div>`).join("")}</div>`):""}
   `
 }
@@ -807,8 +858,8 @@ function populate(){
   const provinces=viewer.role==="admin"?Object.keys(PROVINCES):[authorizedProvince];
   // เดิม: const venues=viewer.role==="owner"?[authorizedVenue]:PROVINCES[state.province];
   // คอมเมนต์ไว้เป็น fallback — ตอนนี้ role admin ใช้ร้านจริงจาก realStores (loadRealStores) ถ้ามีข้อมูลแล้ว
-  const realVenueNames=realStores.map(s=>s.name||s.locationName||s.storeId).filter(Boolean);
-  const venues=viewer.role==="owner"?[authorizedVenue]:viewer.role==="admin"&&realVenueNames.length?realVenueNames:PROVINCES[state.province];
+  // ย้ายไป venueOptions() เพราะ entities() (ตอนเลือก "ทั้งหมด") ต้องใช้ list เดียวกัน
+  const venues=venueOptions();
   ls.querySelector('[value="country"]').disabled=viewer.role!=="admin";ls.querySelector('[value="country"]').hidden=viewer.role!=="admin";
   // เดิม: ls.querySelector('[value="province"]').disabled=viewer.role==="owner";ls.querySelector('[value="province"]').hidden=viewer.role==="owner";
   // ซ่อน "จังหวัด" ออกจาก dropdown ระดับข้อมูลไว้ก่อนตามที่ขอ (ร้านพาร์ทเนอร์เอากลับมาแล้ว เพราะต้องใช้เลือกร้านจริง)
@@ -817,7 +868,9 @@ function populate(){
   // ls.querySelector('[value="venue"]').disabled=true;ls.querySelector('[value="venue"]').hidden=true;
   ls.value=state.level;ls.disabled=viewer.role==="owner";
   ps.innerHTML=provinces.map(p=>`<option ${p===state.province?"selected":""}>${p}</option>`).join("");
-  vs.innerHTML=venues.map(v=>`<option ${v===state.venue?"selected":""}>${v}</option>`).join("");
+  // เพิ่มตัวเลือก "ทั้งหมด" (รวมทุกร้านในสโคป) ไว้บนสุด — เว้น owner เพราะมีร้านเดียวอยู่แล้ว ไม่มีอะไรให้รวม
+  const allOption=viewer.role==="owner"?"":`<option value="ALL" ${state.venue==="ALL"?"selected":""}>ทั้งหมด</option>`;
+  vs.innerHTML=allOption+venues.map(v=>`<option ${v===state.venue?"selected":""}>${v}</option>`).join("");
   ps.disabled=viewer.role!=="admin"||state.level==="country";vs.disabled=viewer.role==="owner"||state.level!=="venue";
   cs.innerHTML=COMPARES[state.period].map(([v,l])=>`<option value="${v}" ${v===state.compare?"selected":""}>${l}</option>`).join("");
   if(!COMPARES[state.period].some(x=>x[0]===state.compare)){state.compare=COMPARES[state.period][0][0];cs.value=state.compare}
@@ -844,15 +897,15 @@ const controller={showOverall,showRealtime};
 activeController=controller;
 document.getElementById("filterOpen").onclick=openDrawer;document.getElementById("filterClose").onclick=closeDrawer;document.getElementById("overlay").onclick=closeDrawer;
 // เดิม: loadingUpdate(()=>{state.level=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามระดับที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
-document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value;loadRealUserStats()})
+document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value;if(state.level==="venue")state.venue="ALL";loadRealUserStats()})
 document.getElementById("provinceSelect").onchange=e=>loadingUpdate(()=>{state.province=e.target.value;state.venue=PROVINCES[state.province][0]})
 // เดิม: loadingUpdate(()=>{state.venue=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามร้านที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
 document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venue=e.target.value;loadRealUserStats()})
-document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value;state.compare=COMPARES[state.period][0][0];populate();render();loadRealUserStats()}
+document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value;state.compare=COMPARES[state.period][0][0];populate();render();loadRealUserStats();loadRealStoreStats()}
 document.getElementById("compareSelect").onchange=e=>{state.compare=e.target.value;render()}
 document.getElementById("nightSelect").onchange=e=>{state.businessNight=e.target.value;render()}
 // เดิม: businessNight:"18:00–02:00" และ nightSelect.value="18:00–02:00" — option นั้นถูกเอาออกแล้ว เปลี่ยนให้ตรงกับ option แรกที่เหลือ
-document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"month",compare:"lastmonth",businessNight:"18:00–19:00"});document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="month";document.getElementById("nightSelect").value="18:00–19:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer();loadRealUserStats()}
+document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"alltime",compare:"lastyear",businessNight:"18:00–19:00"});if(state.level==="venue")state.venue="ALL";document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="alltime";document.getElementById("nightSelect").value="18:00–19:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer();loadRealUserStats();loadRealStoreStats()}
 document.getElementById("exportBtn").onclick=()=>showDashboardToast("แสดงปุ่ม Export ตามสิทธิ์ แต่ยังไม่ทำ Export จริง")
 const handleOrientationChange=()=>setTimeout(()=>render(),120);
 const handleKeyDown=e=>{if(e.key==="Escape")closeDrawer()};

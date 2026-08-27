@@ -146,7 +146,7 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
               </div>
               <div className="field">
                 <label htmlFor="periodSelect">ช่วงเวลา</label>
-                <select id="periodSelect" defaultValue="month">
+                <select id="periodSelect" defaultValue="alltime">
                   <option value="tonight">คืนนี้</option>
                   <option value="today">วันนี้</option>
                   <option value="7d">7 วัน</option>
