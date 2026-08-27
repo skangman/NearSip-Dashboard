@@ -90,9 +90,18 @@ let realUserStats=null;
 function periodToDays(period){
   return {tonight:1,today:1,"7d":7,"30d":30,month:30,quarter:90,year:365,custom:30}[period]||30;
 }
+// หา storeId ของร้านที่เลือกอยู่ตอนนี้ (ถ้ามี) — ใช้กรองข้อมูลจริงเฉพาะร้านนั้น ดูจุดใช้งานใน loadRealUserStats()
+// กรองได้เฉพาะตอน role admin + level="venue" + เลือกร้านจริง (ไม่ใช่ร้าน mock จาก PROVINCES)
+function selectedStoreId(){
+  if(viewer.role!=="admin"||state.level!=="venue")return null;
+  const store=realStores.find(s=>(s.name||s.locationName||s.storeId)===state.venue);
+  return store?store.storeId:null;
+}
 async function loadRealUserStats(){
   try{
-    const res=await fetch(`/api/user-stats?days=${periodToDays(state.period)}`);
+    const storeId=selectedStoreId();
+    const qs=`?days=${periodToDays(state.period)}`+(storeId?`&storeId=${encodeURIComponent(storeId)}`:"");
+    const res=await fetch(`/api/user-stats${qs}`);
     if(!res.ok)return;
     const json=await res.json();
     if(unmounted)return;
@@ -830,14 +839,16 @@ function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtim
 const controller={showOverall,showRealtime};
 activeController=controller;
 document.getElementById("filterOpen").onclick=openDrawer;document.getElementById("filterClose").onclick=closeDrawer;document.getElementById("overlay").onclick=closeDrawer;
-document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value})
+// เดิม: loadingUpdate(()=>{state.level=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามระดับที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
+document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value;loadRealUserStats()})
 document.getElementById("provinceSelect").onchange=e=>loadingUpdate(()=>{state.province=e.target.value;state.venue=PROVINCES[state.province][0]})
-document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venue=e.target.value})
+// เดิม: loadingUpdate(()=>{state.venue=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามร้านที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
+document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venue=e.target.value;loadRealUserStats()})
 document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value;state.compare=COMPARES[state.period][0][0];populate();render();loadRealUserStats()}
 document.getElementById("compareSelect").onchange=e=>{state.compare=e.target.value;render()}
 document.getElementById("nightSelect").onchange=e=>{state.businessNight=e.target.value;render()}
 // เดิม: businessNight:"18:00–02:00" และ nightSelect.value="18:00–02:00" — option นั้นถูกเอาออกแล้ว เปลี่ยนให้ตรงกับ option แรกที่เหลือ
-document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"month",compare:"lastmonth",businessNight:"18:00–19:00"});document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="month";document.getElementById("nightSelect").value="18:00–19:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer()}
+document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"month",compare:"lastmonth",businessNight:"18:00–19:00"});document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="month";document.getElementById("nightSelect").value="18:00–19:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer();loadRealUserStats()}
 document.getElementById("exportBtn").onclick=()=>showDashboardToast("แสดงปุ่ม Export ตามสิทธิ์ แต่ยังไม่ทำ Export จริง")
 const handleOrientationChange=()=>setTimeout(()=>render(),120);
 const handleKeyDown=e=>{if(e.key==="Escape")closeDrawer()};

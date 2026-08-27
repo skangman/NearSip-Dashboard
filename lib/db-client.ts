@@ -76,50 +76,69 @@ export type ActivityTimestamps = {
   usersTimes: string[];
 };
 
-/** อ่านอย่างเดียว — SELECT COUNT(*) จากตาราง "user"/"cheers" เท่านั้น ไม่มีการเขียนข้อมูลใดๆ */
-export async function getUserStats(days: number): Promise<UserStats> {
+/**
+ * อ่านอย่างเดียว — SELECT COUNT(*) จากตาราง "user"/"cheers" เท่านั้น ไม่มีการเขียนข้อมูลใดๆ
+ *
+ * `storeId` (optional): กรองข้อมูลให้เหลือเฉพาะร้านนั้น เมื่อไม่ส่ง (undefined/null) = รวมทุกร้าน
+ * ตารางที่มี store_id ตรงๆ (cheers/chats/login_log/set_location) กรองได้ตรงๆ ส่วน "user"
+ * (uniqueUsers/newUsers/gender/age/usersTimes) ไม่มี store_id เลย จึงกรองทางอ้อมผ่าน
+ * "user ที่เคย login ที่ร้านนี้" (login_log.store_id) — ไม่ใช่ users ที่ "สังกัด" ร้านจริงๆ
+ * (concept นี้ไม่มีใน schema) แค่ประมาณจากใครเคย login ที่ร้านนั้นบ้าง
+ * `activeSessions` (ตาราง session) ไม่มี store_id เลย จึงกรองตามร้านไม่ได้ ยังเป็นยอดรวมทั้งระบบเสมอ
+ */
+export async function getUserStats(days: number, storeId?: string | null): Promise<UserStats> {
+  const sid = storeId ?? null; // ให้ pg bind เป็น NULL ได้ตรงๆ เมื่อไม่กรอง
   const client = await getPool().connect();
   try {
     const userResult = await client.query<{ unique_users: string; new_users: string }>(
       `SELECT
          COUNT(*) AS unique_users,
          COUNT(*) FILTER (WHERE create_at >= now() - ($1 || ' days')::interval) AS new_users
-       FROM "user"`,
-      [days],
+       FROM "user"
+       WHERE ($2::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $2))`,
+      [days, sid],
     );
     const userRow = userResult.rows[0];
     const uniqueUsers = Number(userRow?.unique_users ?? 0);
     const newUsers = Number(userRow?.new_users ?? 0);
 
-    // engaged users = distinct user ที่เป็นผู้ส่งหรือผู้รับ cheers อย่างน้อย 1 ครั้ง
+    // engaged users = distinct user ที่เป็นผู้ส่งหรือผู้รับ cheers อย่างน้อย 1 ครั้ง (ในร้านนี้ ถ้ากรอง)
     const engagementResult = await client.query<{ engaged_users: string }>(
       `SELECT COUNT(*) AS engaged_users FROM (
-         SELECT inittiator_user_id AS uid FROM cheers
+         SELECT inittiator_user_id AS uid FROM cheers WHERE ($1::text IS NULL OR store_id = $1)
          UNION
-         SELECT responder_user_id FROM cheers
+         SELECT responder_user_id FROM cheers WHERE ($1::text IS NULL OR store_id = $1)
        ) engaged`,
+      [sid],
     );
     const engagedUsers = Number(engagementResult.rows[0]?.engaged_users ?? 0);
 
     // ใช้สำหรับ Real-time page — session ที่ยังไม่หมดอายุ = ตัวแทน "active ตอนนี้"
+    // NOTE: ตาราง session ไม่มี store_id เลย กรองตามร้านไม่ได้จริง เป็นยอดรวมทั้งระบบเสมอ
     const sessionResult = await client.query<{ active_sessions: string }>(
       `SELECT COUNT(*) AS active_sessions FROM session WHERE expires > now()`,
     );
     const activeSessions = Number(sessionResult.rows[0]?.active_sessions ?? 0);
 
     const cheersTotalResult = await client.query<{ total: string }>(
-      `SELECT COUNT(*) AS total FROM cheers`,
+      `SELECT COUNT(*) AS total FROM cheers WHERE ($1::text IS NULL OR store_id = $1)`,
+      [sid],
     );
     const cheersTotal = Number(cheersTotalResult.rows[0]?.total ?? 0);
 
     const chatsTotalResult = await client.query<{ total: string }>(
-      `SELECT COUNT(*) AS total FROM chats`,
+      `SELECT COUNT(*) AS total FROM chats WHERE ($1::text IS NULL OR store_id = $1)`,
+      [sid],
     );
     const chatsTotal = Number(chatsTotalResult.rows[0]?.total ?? 0);
 
-    // เพศ — all-time จาก user.gender (enum MALE/FEMALE/LGBTQ)
+    // เพศ — จาก user.gender (enum MALE/FEMALE/LGBTQ) ของ user ในร้านนี้ (ถ้ากรอง)
     const genderResult = await client.query<{ gender: string; count: string }>(
-      `SELECT gender::text, COUNT(*) AS count FROM "user" WHERE gender IS NOT NULL GROUP BY gender`,
+      `SELECT gender::text, COUNT(*) AS count FROM "user"
+       WHERE gender IS NOT NULL
+         AND ($1::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $1))
+       GROUP BY gender`,
+      [sid],
     );
     const genderBreakdown = { male: 0, female: 0, lgbtq: 0 };
     for (const row of genderResult.rows) {
@@ -129,7 +148,7 @@ export async function getUserStats(days: number): Promise<UserStats> {
       else if (row.gender === "LGBTQ") genderBreakdown.lgbtq = count;
     }
 
-    // ช่วงอายุ — all-time จาก user.age
+    // ช่วงอายุ — เช่นเดียวกับเพศ กรองตาม user ในร้านนี้ (ถ้ากรอง)
     const ageResult = await client.query<{
       a20: string; a31: string; a41: string; a51: string; a61: string;
     }>(
@@ -139,7 +158,9 @@ export async function getUserStats(days: number): Promise<UserStats> {
          COUNT(*) FILTER (WHERE age BETWEEN 41 AND 50) AS a41,
          COUNT(*) FILTER (WHERE age BETWEEN 51 AND 60) AS a51,
          COUNT(*) FILTER (WHERE age BETWEEN 61 AND 70) AS a61
-       FROM "user"`,
+       FROM "user"
+       WHERE ($1::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $1))`,
+      [sid],
     );
     const ageRow = ageResult.rows[0];
     const ageBreakdown = {
@@ -155,13 +176,18 @@ export async function getUserStats(days: number): Promise<UserStats> {
     // จำกัด 5000 แถวล่าสุดต่อ table กันโหลดหนักถ้าข้อมูลเยอะขึ้นในอนาคต
     // รันทีละ query บน client เดียวกัน (ไม่ใช้ Promise.all) — pg client รันได้ทีละ query เท่านั้น
     const cheersTimesResult = await client.query<{ create_at: string }>(
-      `SELECT create_at FROM cheers ORDER BY create_at DESC LIMIT 5000`,
+      `SELECT create_at FROM cheers WHERE ($1::text IS NULL OR store_id = $1) ORDER BY create_at DESC LIMIT 5000`,
+      [sid],
     );
     const chatsTimesResult = await client.query<{ create_at: string }>(
-      `SELECT create_at FROM chats ORDER BY create_at DESC LIMIT 5000`,
+      `SELECT create_at FROM chats WHERE ($1::text IS NULL OR store_id = $1) ORDER BY create_at DESC LIMIT 5000`,
+      [sid],
     );
     const usersTimesResult = await client.query<{ create_at: string }>(
-      `SELECT create_at FROM "user" ORDER BY create_at DESC LIMIT 5000`,
+      `SELECT create_at FROM "user"
+       WHERE ($1::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $1))
+       ORDER BY create_at DESC LIMIT 5000`,
+      [sid],
     );
     const activityTimestamps: ActivityTimestamps = {
       cheersTimes: cheersTimesResult.rows.map((r) => r.create_at),
@@ -171,7 +197,8 @@ export async function getUserStats(days: number): Promise<UserStats> {
 
     // cheers แยกตาม status จริง (enum CheersStatus: Pending=0, Accepted=1, Refuse=2)
     const cheersStatusResult = await client.query<{ status: number; count: string }>(
-      `SELECT status, COUNT(*) AS count FROM cheers GROUP BY status`,
+      `SELECT status, COUNT(*) AS count FROM cheers WHERE ($1::text IS NULL OR store_id = $1) GROUP BY status`,
+      [sid],
     );
     const cheersByStatus = { pending: 0, accepted: 0, refused: 0 };
     for (const row of cheersStatusResult.rows) {
@@ -182,19 +209,28 @@ export async function getUserStats(days: number): Promise<UserStats> {
     }
 
     const cheersPeopleResult = await client.query<{ senders: string; receivers: string }>(
-      `SELECT COUNT(DISTINCT inittiator_user_id) AS senders, COUNT(DISTINCT responder_user_id) AS receivers FROM cheers`,
+      `SELECT COUNT(DISTINCT inittiator_user_id) AS senders, COUNT(DISTINCT responder_user_id) AS receivers
+       FROM cheers WHERE ($1::text IS NULL OR store_id = $1)`,
+      [sid],
     );
     const cheersSenders = Number(cheersPeopleResult.rows[0]?.senders ?? 0);
     const cheersReceivers = Number(cheersPeopleResult.rows[0]?.receivers ?? 0);
 
+    // messages ไม่มี store_id ตรงๆ ต้อง join ผ่าน chats
     const messagesTotalResult = await client.query<{ total: string }>(
-      `SELECT COUNT(*) AS total FROM messages`,
+      `SELECT COUNT(*) AS total FROM messages m
+       JOIN chats c ON c.id = m.chat_id
+       WHERE ($1::text IS NULL OR c.store_id = $1)`,
+      [sid],
     );
     const messagesTotal = Number(messagesTotalResult.rows[0]?.total ?? 0);
 
+    // newStores: ถ้ากรองตามร้าน = เช็คแค่ร้านนั้นร้านเดียวว่าสร้างในช่วง `days` วันหรือไม่ (0 หรือ 1)
     const newStoresResult = await client.query<{ new_stores: string }>(
-      `SELECT COUNT(*) AS new_stores FROM set_location WHERE create_date >= now() - ($1 || ' days')::interval`,
-      [days],
+      `SELECT COUNT(*) AS new_stores FROM set_location
+       WHERE create_date >= now() - ($1 || ' days')::interval
+         AND ($2::text IS NULL OR store_id = $2)`,
+      [days, sid],
     );
     const newStores = Number(newStoresResult.rows[0]?.new_stores ?? 0);
 
@@ -202,7 +238,10 @@ export async function getUserStats(days: number): Promise<UserStats> {
     const loginLogResult = await client.query<{
       user_id: string | null; store_id: string | null; create_date: string;
     }>(
-      `SELECT user_id, store_id, create_date FROM login_log ORDER BY create_date DESC LIMIT 5000`,
+      `SELECT user_id, store_id, create_date FROM login_log
+       WHERE ($1::text IS NULL OR store_id = $1)
+       ORDER BY create_date DESC LIMIT 5000`,
+      [sid],
     );
     const loginLogs = loginLogResult.rows.map((r) => ({
       userId: r.user_id,
@@ -215,7 +254,9 @@ export async function getUserStats(days: number): Promise<UserStats> {
       `SELECT
          COUNT(*) FILTER (WHERE email IS NOT NULL) AS email_count,
          COUNT(*) FILTER (WHERE email IS NULL) AS line_count
-       FROM "user"`,
+       FROM "user"
+       WHERE ($1::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $1))`,
+      [sid],
     );
     const loginChannel = {
       email: Number(loginChannelResult.rows[0]?.email_count ?? 0),
