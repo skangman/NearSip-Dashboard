@@ -1,0 +1,24 @@
+import { getCurrentViewer } from "@/lib/mock-auth";
+import { getUserStats } from "@/lib/db-client";
+
+/**
+ * GET /api/user-stats?days=30 → COUNT(*) จริงจากตาราง user (DB ตรง, read-only)
+ * มีเพราะ backend ไม่มี endpoint list/aggregate user เลย (ดู lib/db-client.ts)
+ */
+export async function GET(request: Request) {
+  const viewer = await getCurrentViewer();
+  if (!viewer) {
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const days = Number(searchParams.get("days")) || 30;
+
+  try {
+    const stats = await getUserStats(days);
+    return Response.json(stats);
+  } catch (err) {
+    console.error("user-stats DB query failed", err);
+    return Response.json({ message: "Failed to reach database" }, { status: 502 });
+  }
+}

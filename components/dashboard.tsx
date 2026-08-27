@@ -134,7 +134,9 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
                   <option value="venue">ร้านพาร์ทเนอร์</option>
                 </select>
               </div>
-              <div className="field">
+              {/* ซ่อน dropdown จังหวัดไว้ก่อน — backend ยังไม่มีฟิลด์จังหวัดผูกร้าน (ข้อมูลเป็น mock)
+                  element ยังอยู่เหมือนเดิมเพราะ lib/dashboard-runtime.ts ยังอ้างอิง #provinceSelect อยู่ */}
+              <div className="field" style={{ display: "none" }}>
                 <label htmlFor="provinceSelect">จังหวัด</label>
                 <select id="provinceSelect" />
               </div>
@@ -161,9 +163,25 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
               </div>
               <div className="field">
                 <label htmlFor="nightSelect">Business Night</label>
+                {/* เดิม defaultValue="18:00–02:00" พร้อม option 18:00–00:00, 18:00–02:00 — เอาออกตามที่ขอ เหลือแค่ช่วงรายชั่วโมง
                 <select id="nightSelect" defaultValue="18:00–02:00">
                   <option>18:00–00:00</option>
                   <option>18:00–02:00</option>
+                </select>
+                */}
+                <select id="nightSelect" defaultValue="18:00–19:00">
+                  {/* เดิม: <option>18:00–05:00</option> — แทนที่ด้วยช่วงรายชั่วโมงจนถึงตี 5 ตามที่ขอ */}
+                  <option>18:00–19:00</option>
+                  <option>19:00–20:00</option>
+                  <option>20:00–21:00</option>
+                  <option>21:00–22:00</option>
+                  <option>22:00–23:00</option>
+                  <option>23:00–00:00</option>
+                  <option>00:00–01:00</option>
+                  <option>01:00–02:00</option>
+                  <option>02:00–03:00</option>
+                  <option>03:00–04:00</option>
+                  <option>04:00–05:00</option>
                 </select>
               </div>
               <button className="export" id="exportBtn" type="button">
