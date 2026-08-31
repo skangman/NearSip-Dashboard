@@ -141,7 +141,8 @@ const state={
   mode:initialMode,page:"executive",...initialScope,
   // เดิม: businessNight:"18:00–02:00" — option นี้ถูกเอาออกจาก nightSelect แล้ว (เหลือแค่ช่วงรายชั่วโมง) เปลี่ยน default ให้ตรงกัน
   // เดิม: period:"month",compare:"lastmonth" — เปลี่ยน default ช่วงเวลาเป็น "ทั้งหมด" ตามที่ขอ (compare ต้องตรงกับ COMPARES.alltime)
-  period:"alltime",compare:"lastyear",businessNight:"18:00–19:00",
+  // เดิม: businessNight:"18:00–19:00" — เพิ่มตัวเลือก "ทั้งหมด" ใน nightSelect และตั้งเป็นค่าเริ่มต้นตามที่ขอ
+  period:"alltime",compare:"lastyear",businessNight:"ทั้งหมด",
   execTrend:"users",topMetric:"users",provinceMetric:"users",segmentMetric:"frequent",
   engageTab:"cheers",timeMetric:"users",granularity:"30m",nscTab:"nsc",
   revenueTrend:"daily",revenueRank:"feature",merchantSort:"lastAccess",
@@ -404,7 +405,9 @@ function execPage(d,p){
      newUsers/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ตัด Repeat/NSC/รายได้ออกเพราะไม่มี
      table ให้ query เลย ถ้ายังไม่มีร้านจริง (ยังโหลดไม่เสร็จ/โหลดไม่สำเร็จ) fallback กลับไปใช้ mock เหมือนเดิม */""}
   ${card("Top Performer",useRealRank?"Ranking table จาก DB จริง ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
-  ${realFeed.length?card("Feed จากระบบจริง","ดึงจาก /api/feed ตรงๆ (ไม่ใช่ mock)",`<div class="stat-list">${realFeed.map(f=>`<div class="stat"><b>${f.imageTitleText||(f.feedType==="Global"?"ประกาศทั่วไป":"ประกาศร้าน "+f.storeId)}</b><p>${f.description||""}</p></div>`).join("")}</div>`):""}
+  ${/* เดิม: การ์ด "Feed จากระบบจริง" ดึงจาก /api/feed ตรงๆ — คอมเมนต์ออกตามที่ขอ
+  realFeed.length?card("Feed จากระบบจริง","ดึงจาก /api/feed ตรงๆ (ไม่ใช่ mock)",`<div class="stat-list">${realFeed.map(f=>`<div class="stat"><b>${f.imageTitleText||(f.feedType==="Global"?"ประกาศทั่วไป":"ประกาศร้าน "+f.storeId)}</b><p>${f.description||""}</p></div>`).join("")}</div>`):""
+  */""}
   `
 }
 function partnersPage(d,p){
@@ -428,13 +431,26 @@ function partnersPage(d,p){
     ${kpi("Revenue / Active Venue","—","ไม่มีข้อมูลใน DB","ไม่มี table รายได้ในระบบ","neutral")}
   </div>
   <div class="grid two-even">
-    ${card("จำนวนร้านแยกตามจังหวัด","Bar chart อ่านการเปรียบเทียบได้ตรงกว่า Map (ยังเป็น mock — DB ไม่มีฟิลด์จังหวัดผูกร้าน)",barRows(prov.map(x=>[x.province,x.stores,fmt(x.stores)])))}
+    ${/* ร้านจริง (backend set-location) มีแค่ storeId/name/lat/lng/status ไม่มีฟิลด์จังหวัดผูกร้านเลย
+       พอมีร้านจริงแล้วเลยเว้นว่างไว้แทนการโชว์ตัวเลข mock (ตามที่ขอ) */""}
+    ${realStores.length
+      ?card("จำนวนร้านแยกตามจังหวัด","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด (มีแค่ lat/lng)",`<div class="k-value">—</div>`)
+      :card("จำนวนร้านแยกตามจังหวัด","Bar chart อ่านการเปรียบเทียบได้ตรงกว่า Map (ยังเป็น mock — DB ไม่มีฟิลด์จังหวัดผูกร้าน)",barRows(prov.map(x=>[x.province,x.stores,fmt(x.stores)])))}
     ${realUserStats?card("User Profile","เพศและอายุของผู้ใช้ทั้งหมด (all-time, จาก DB จริง — ไม่แยกรายจังหวัดเพราะ DB ไม่มีข้อมูลนี้)",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",realUserStats.ageBreakdown.a20,fmt(realUserStats.ageBreakdown.a20)],["31–40",realUserStats.ageBreakdown.a31,fmt(realUserStats.ageBreakdown.a31)],["41–50",realUserStats.ageBreakdown.a41,fmt(realUserStats.ageBreakdown.a41)],["51–60",realUserStats.ageBreakdown.a51,fmt(realUserStats.ageBreakdown.a51)],["61–70",realUserStats.ageBreakdown.a61,fmt(realUserStats.ageBreakdown.a61)]])}`):card("Province Profile","เพศ อายุ และ Interaction ของ Scope จังหวัด",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",d.male],["หญิง",d.female],["LGBTQ",d.lgbtq]],d.unique)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",d.a20,fmt(d.a20)],["31–40",d.a31,fmt(d.a31)],["41–50",d.a41,fmt(d.a41)],["51–60",d.a51,fmt(d.a51)],["61–70",d.a61,fmt(d.a61)]])}`)}
   </div>
-  ${card("Province Comparison","ตารางเดียว เปลี่ยน Metric ที่ใช้จัดอันดับ (ยังเป็น mock — DB ไม่มีฟิลด์จังหวัด)",`<div class="metric-toolbar"><div class="field"><label for="provinceMetricSelect">จัดอันดับจังหวัดตาม</label><select id="provinceMetricSelect"><option value="users">ผู้ใช้ NearSip</option><option value="growth">Growth</option><option value="engagement">Engagement</option><option value="nsc">NSC Purchased</option><option value="revenue">รายได้</option><option value="revPerActive">Revenue / Active Venue</option></select></div></div>${desktopAndMobileTable(["#","จังหวัด","ร้าน","Unique Users","ผู้ใช้ใหม่","ผู้ใช้เดิม","Engagement","NSC Purchased","รายได้","Revenue / Active Venue"],sorted.map((x,i)=>[i+1,x.province,x.stores,fmt(x.unique),fmt(x.newUsers),fmt(x.existing),fmt(x.engagement),fmt(x.nscPurchased),money(x.revenue),money(x.revPerActive)]),sorted.map((x,i)=>mobileCard((i+1)+". "+x.province,x.stores+" ร้าน",state.provinceMetric==="revenue"||state.provinceMetric==="revPerActive"?money(x.value):state.provinceMetric==="growth"?pct(x.value):fmt(x.value),"",[["Unique Users",fmt(x.unique)],["ผู้ใช้ใหม่",fmt(x.newUsers)],["Engagement",fmt(x.engagement)],["NSC Purchased",fmt(x.nscPurchased)],["รายได้",money(x.revenue)]])))}`)}
+  ${realStores.length
+    ?card("Province Comparison","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด จัดอันดับรายจังหวัดไม่ได้",`<div class="k-value">—</div>`)
+    :card("Province Comparison","ตารางเดียว เปลี่ยน Metric ที่ใช้จัดอันดับ (ยังเป็น mock — DB ไม่มีฟิลด์จังหวัด)",`<div class="metric-toolbar"><div class="field"><label for="provinceMetricSelect">จัดอันดับจังหวัดตาม</label><select id="provinceMetricSelect"><option value="users">ผู้ใช้ NearSip</option><option value="growth">Growth</option><option value="engagement">Engagement</option><option value="nsc">NSC Purchased</option><option value="revenue">รายได้</option><option value="revPerActive">Revenue / Active Venue</option></select></div></div>${desktopAndMobileTable(["#","จังหวัด","ร้าน","Unique Users","ผู้ใช้ใหม่","ผู้ใช้เดิม","Engagement","NSC Purchased","รายได้","Revenue / Active Venue"],sorted.map((x,i)=>[i+1,x.province,x.stores,fmt(x.unique),fmt(x.newUsers),fmt(x.existing),fmt(x.engagement),fmt(x.nscPurchased),money(x.revenue),money(x.revPerActive)]),sorted.map((x,i)=>mobileCard((i+1)+". "+x.province,x.stores+" ร้าน",state.provinceMetric==="revenue"||state.provinceMetric==="revPerActive"?money(x.value):state.provinceMetric==="growth"?pct(x.value):fmt(x.value),"",[["Unique Users",fmt(x.unique)],["ผู้ใช้ใหม่",fmt(x.newUsers)],["Engagement",fmt(x.engagement)],["NSC Purchased",fmt(x.nscPurchased)],["รายได้",money(x.revenue)]])))}`)}
   <div class="grid two-even" style="margin-top:14px">
-    ${card("ร้านใน Scope","เมื่อ Scope เป็นจังหวัดหรือร้าน ตารางจะลดตาม Scope โดยอัตโนมัติ (ยังเป็น mock — มีร้านจริงแค่ 1 ร้าน)",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],rank.rows.map(r=>[r.venue,r.province,fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map(r=>mobileCard(r.venue,r.province,fmt(r.unique)+" users","",[["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]]))))}
-    ${card("แนวโน้มจังหวัด","รายวัน รายสัปดาห์ และรายเดือน ใช้กราฟเดียวแบบสรุป (ยังเป็น mock — ไม่มี timestamp รายวันที่ใช้ได้จริงพอ)",lineChart([{name:"รายวัน",values:timeSeries(d.unique,7,"pd")},{name:"รายสัปดาห์",values:timeSeries(d.unique*.8,7,"pw")}],["จ","อ","พ","พฤ","ศ","ส","อา"],"แนวโน้มผู้ใช้ NearSip ในร้านพาร์ทเนอร์ของจังหวัด","คน"))}
+    ${/* ใช้ realStoreStats (จาก /api/user-stats วนต่อร้าน) เมื่อมีร้านจริง เหมือน Top Performer ใน execPage() —
+       มีแค่ users/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ส่วนจังหวัด/Repeat/NSC/รายได้
+       ไม่มีข้อมูลจริงรองรับเลยเว้นว่างไว้ (ตามที่ขอ) ไม่มีร้านจริงเลย fallback กลับไปใช้ mock เหมือนเดิม */""}
+    ${realStoreStats.length
+      ?card("ร้านใน Scope","จาก DB จริง ต่อร้าน — จังหวัด/Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยเว้นว่างไว้",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],realStoreStats.map(r=>[r.venue,"—",fmt(r.uniqueUsers),fmt(r.engagement),"—","—","—"]),realStoreStats.map(r=>mobileCard(r.venue,"จาก DB จริง",fmt(r.uniqueUsers)+" users","",[["Engagement",fmt(r.engagement)],["Repeat","—"],["NSC","—"],["รายได้","—"]]))))
+      :card("ร้านใน Scope","เมื่อ Scope เป็นจังหวัดหรือร้าน ตารางจะลดตาม Scope โดยอัตโนมัติ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],rank.rows.map(r=>[r.venue,r.province,fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map(r=>mobileCard(r.venue,r.province,fmt(r.unique)+" users","",[["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]]))))}
+    ${realStores.length
+      ?card("แนวโน้มจังหวัด","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด แยกแนวโน้มรายจังหวัดไม่ได้",`<div class="k-value">—</div>`)
+      :card("แนวโน้มจังหวัด","รายวัน รายสัปดาห์ และรายเดือน ใช้กราฟเดียวแบบสรุป (ยังเป็น mock — ไม่มี timestamp รายวันที่ใช้ได้จริงพอ)",lineChart([{name:"รายวัน",values:timeSeries(d.unique,7,"pd")},{name:"รายสัปดาห์",values:timeSeries(d.unique*.8,7,"pw")}],["จ","อ","พ","พฤ","ศ","ส","อา"],"แนวโน้มผู้ใช้ NearSip ในร้านพาร์ทเนอร์ของจังหวัด","คน"))}
   </div>`
 }
 function usersPage(d,p){
@@ -510,7 +526,9 @@ function engagementPage(d,p){
   }
   return`${hero("Engagement & Retention","Cheers, Match, Chat และ Repeat/Retention ผ่าน Sub-tabs","ไม่แสดงทุก Metric พร้อมกัน")}
   <div class="seg" style="width:max-content;margin-bottom:14px"><button data-engage="cheers" class="${state.engageTab==="cheers"?"active":""}">Cheers</button><button data-engage="match" class="${state.engageTab==="match"?"active":""}">Match</button><button data-engage="chat" class="${state.engageTab==="chat"?"active":""}">Chat</button><button data-engage="retention" class="${state.engageTab==="retention"?"active":""}">Retention</button></div>
-  ${summary}${body}`
+  ${/* summary เป็น card() เดี่ยว (section.card) ไม่มี margin-bottom ในตัวเหมือน .kpis/.two-even ที่ใช้ทั่วไป
+     พอตามด้วย body (.grid kpis) เลยชิดกันสนิท ห่อ body ด้วย margin-top:14px ให้ตรงกับ spacing ที่ใช้ทั้งไฟล์ */""}
+  ${summary}<div style="margin-top:14px">${body}</div>`
 }
 function timePage(d,p,realtime=false){
   const points=state.granularity==="15m"?24:state.granularity==="30m"?12:8;
@@ -783,7 +801,8 @@ function updateNavOverflow(){const nav=document.getElementById("mainNav");if(!na
 function renderNav(){
   if(state.mode==="realtime"){document.getElementById("mainNav").innerHTML="";updateNavOverflow();return}
   const navItems=accessibleOverallMenus().map(menu=>[menu.id,menu.label]);
-  if(viewer.role==="admin")navItems.push(["settings","Users & Menu Access"]);
+  // คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "Users & Menu Access" ออกจาก nav ชั่วคราว
+  // if(viewer.role==="admin")navItems.push(["settings","Users & Menu Access"]);
   document.getElementById("mainNav").innerHTML=navItems.map(([id,label])=>`<button type="button" data-page="${id}" class="${state.page===id?"active":""}">${label}</button>`).join("");
   document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render()});requestAnimationFrame(updateNavOverflow)
 }
@@ -905,7 +924,8 @@ document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value
 document.getElementById("compareSelect").onchange=e=>{state.compare=e.target.value;render()}
 document.getElementById("nightSelect").onchange=e=>{state.businessNight=e.target.value;render()}
 // เดิม: businessNight:"18:00–02:00" และ nightSelect.value="18:00–02:00" — option นั้นถูกเอาออกแล้ว เปลี่ยนให้ตรงกับ option แรกที่เหลือ
-document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"alltime",compare:"lastyear",businessNight:"18:00–19:00"});if(state.level==="venue")state.venue="ALL";document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="alltime";document.getElementById("nightSelect").value="18:00–19:00";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer();loadRealUserStats();loadRealStoreStats()}
+// เดิม: businessNight:"18:00–19:00" และ nightSelect.value="18:00–19:00" — เปลี่ยนให้ตรงกับค่าเริ่มต้นใหม่ "ทั้งหมด"
+document.getElementById("resetBtn").onclick=()=>{Object.assign(state,{mode:"overall",page:"executive",...initialScope,period:"alltime",compare:"lastyear",businessNight:"ทั้งหมด"});if(state.level==="venue")state.venue="ALL";document.getElementById("levelSelect").value=initialScope.level;document.getElementById("periodSelect").value="alltime";document.getElementById("nightSelect").value="ทั้งหมด";ensureAccessibleView();syncModeControls();onModeChange(state.mode);populate();render();closeDrawer();loadRealUserStats();loadRealStoreStats()}
 document.getElementById("exportBtn").onclick=()=>showDashboardToast("แสดงปุ่ม Export ตามสิทธิ์ แต่ยังไม่ทำ Export จริง")
 const handleOrientationChange=()=>setTimeout(()=>render(),120);
 const handleKeyDown=e=>{if(e.key==="Escape")closeDrawer()};

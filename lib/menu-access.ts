@@ -10,8 +10,10 @@ export const DASHBOARD_MENUS = [
     mode: "overall",
   },
   { id: "time", label: "Time & Night Pattern", mode: "overall" },
-  { id: "nsc", label: "NSC & Revenue", mode: "overall" },
-  { id: "merchant", label: "Merchant Success", mode: "overall" },
+  // คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "NSC & Revenue" ออกจาก nav ชั่วคราว
+  // { id: "nsc", label: "NSC & Revenue", mode: "overall" },
+  // คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "Merchant Success" ออกจาก nav ชั่วคราว
+  // { id: "merchant", label: "Merchant Success", mode: "overall" },
   { id: "realtime", label: "Real-time", mode: "realtime" },
 ] as const;
 
