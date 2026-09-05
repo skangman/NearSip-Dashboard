@@ -378,23 +378,23 @@ function execPage(d,p){
     ?`<option value="users">ผู้ใช้ NearSip สูงสุด</option><option value="newUsers">ผู้ใช้ใหม่สูงสุด</option><option value="engagement">Engagement สูงสุด</option>`
     :`<option value="users">ผู้ใช้ NearSip สูงสุด</option><option value="engagement">Engagement สูงสุด</option><option value="engPerUser">Engagement ต่อผู้ใช้สูงสุด</option><option value="repeat">Repeat Rate สูงสุด</option><option value="newUsers">ผู้ใช้ใหม่สูงสุด</option><option value="nsc">NSC Usage สูงสุด</option><option value="nscPerUser">NSC Usage ต่อผู้ใช้สูงสุด</option><option value="revenue">รายได้สูงสุด</option>`;
   const topPerformerTable=useRealRank
-    ?desktopAndMobileTable(["#","ร้าน",rank.label,"ผู้ใช้ NearSip","ผู้ใช้ใหม่","Engagement"],rank.rows.map((r,i)=>[i+1,r.venue,fmt(r.value),fmt(r.uniqueUsers),fmt(r.newUsers),fmt(r.engagement)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,"จาก DB จริง",fmt(r.value),"",[["ผู้ใช้ NearSip",fmt(r.uniqueUsers)],["ผู้ใช้ใหม่",fmt(r.newUsers)],["Engagement",fmt(r.engagement)]])))
+    ?desktopAndMobileTable(["#","ร้าน",rank.label,"ผู้ใช้ NearSip","ผู้ใช้ใหม่","Engagement"],rank.rows.map((r,i)=>[i+1,r.venue,fmt(r.value),fmt(r.uniqueUsers),fmt(r.newUsers),fmt(r.engagement)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,"",fmt(r.value),"",[["ผู้ใช้ NearSip",fmt(r.uniqueUsers)],["ผู้ใช้ใหม่",fmt(r.newUsers)],["Engagement",fmt(r.engagement)]])))
     :desktopAndMobileTable(["#","ร้าน","จังหวัด",rank.label,"ผู้ใช้","Engagement","Repeat","NSC","รายได้"],rank.rows.map((r,i)=>[i+1,r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),"",[["ผู้ใช้",fmt(r.unique)],["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]])));
   return`${hero("Executive Overview","ภาพรวม NearSip ที่ CEO เข้าใจได้ภายในประมาณ 10 วินาที","Headline 6 KPI · Progressive Disclosure")}
   <div class="grid kpis">
     ${/* เดิม: ${kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")} — คอมเมนต์ไว้เป็น fallback */""}
-    ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"จาก DB จริง","ร้านพาร์ทเนอร์ในระบบ","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")}
+    ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"","ร้านพาร์ทเนอร์ในระบบ","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")}
     ${/* เดิม: ${kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")} — คอมเมนต์ไว้เป็น fallback */""}
-    ${realUserStats?kpi("ผู้ใช้ NearSip แบบ Unique",fmt(realUserStats.uniqueUsers),"จาก DB จริง","ทั้งหมด (all-time)","neutral"):kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ NearSip แบบ Unique",fmt(realUserStats.uniqueUsers),"","ทั้งหมด (all-time)","neutral"):kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
     ${/* เดิม: ${kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")} — คอมเมนต์ไว้เป็น fallback */""}
-    ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"จาก DB จริง",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
     ${/* เดิม 3 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
     ${kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
     ${kpi("Engagement Rate รวม",d.engagementRate.toFixed(1)+"%",pp(d.engagementRate-p.engagementRate),"Engaged users / Unique users","good")}
     ${kpi("รายได้ที่รับรู้ทั้งหมด",money(d.recognizedRevenue),pct(change(d.recognizedRevenue,p.recognizedRevenue)),periodLabel(),"good")}
     */""}
-    ${realUserStats?kpi("ผู้ใช้เดิม",fmt(realUserStats.existingUsers),"จาก DB จริง","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
-    ${realUserStats?kpi("Engagement Rate รวม",realUserStats.engagementRate.toFixed(1)+"%","จาก DB จริง","Engaged users / Unique users (cheers)","neutral"):kpi("Engagement Rate รวม",d.engagementRate.toFixed(1)+"%",pp(d.engagementRate-p.engagementRate),"Engaged users / Unique users","good")}
+    ${realUserStats?kpi("ผู้ใช้เดิม",fmt(realUserStats.existingUsers),"","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
+    ${realUserStats?kpi("Engagement Rate รวม",realUserStats.engagementRate.toFixed(1)+"%","","Engaged users / Unique users (cheers)","neutral"):kpi("Engagement Rate รวม",d.engagementRate.toFixed(1)+"%",pp(d.engagementRate-p.engagementRate),"Engaged users / Unique users","good")}
     ${kpi("รายได้ที่รับรู้ทั้งหมด","—","ไม่มีข้อมูลนี้ใน DB","ไม่มี table รายได้/NSC ในระบบ","neutral")}
   </div>
   <div class="grid two">
@@ -404,7 +404,7 @@ function execPage(d,p){
   ${/* Top Performer: ใช้ realStoreStats (จาก /api/user-stats วนต่อร้าน) เมื่อมีร้านจริง — เหลือแค่ users/
      newUsers/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ตัด Repeat/NSC/รายได้ออกเพราะไม่มี
      table ให้ query เลย ถ้ายังไม่มีร้านจริง (ยังโหลดไม่เสร็จ/โหลดไม่สำเร็จ) fallback กลับไปใช้ mock เหมือนเดิม */""}
-  ${card("Top Performer",useRealRank?"Ranking table จาก DB จริง ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
+  ${card("Top Performer",useRealRank?"Ranking table ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
   ${/* เดิม: การ์ด "Feed จากระบบจริง" ดึงจาก /api/feed ตรงๆ — คอมเมนต์ออกตามที่ขอ
   realFeed.length?card("Feed จากระบบจริง","ดึงจาก /api/feed ตรงๆ (ไม่ใช่ mock)",`<div class="stat-list">${realFeed.map(f=>`<div class="stat"><b>${f.imageTitleText||(f.feedType==="Global"?"ประกาศทั่วไป":"ประกาศร้าน "+f.storeId)}</b><p>${f.description||""}</p></div>`).join("")}</div>`):""
   */""}
@@ -417,18 +417,18 @@ function partnersPage(d,p){
   return`${hero("Partners & Geography","ร้านพาร์ทเนอร์ จังหวัด และการเปรียบเทียบเชิงพื้นที่","Province users = ผู้ใช้ NearSip ในร้านพาร์ทเนอร์")}
   <div class="grid kpis">
     ${/* เดิม: ${kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์เท่านั้น","neutral")} — คอมเมนต์ไว้เป็น fallback */""}
-    ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"จาก DB จริง","ร้านพาร์ทเนอร์เท่านั้น","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์เท่านั้น","neutral")}
+    ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"","ร้านพาร์ทเนอร์เท่านั้น","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์เท่านั้น","neutral")}
     ${/* เดิม 4 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
     ${kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
     ${kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
     ${kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
     ${kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
     */""}
-    ${realStores.length?kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(realStores.length),"จาก DB จริง","ไม่มี presence tracking จริง ใช้ยอด ACTIVE ทั้งหมดแทน","neutral"):kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
-    ${realUserStats?kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(realUserStats.newStores),"จาก DB จริง",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
-    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",fmt(realUserStats.uniqueUsers),"จาก DB จริง","all-time (ไม่ใช่ Total Footfall)","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
-    ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"จาก DB จริง","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
-    ${kpi("Revenue / Active Venue","—","ไม่มีข้อมูลใน DB","ไม่มี table รายได้ในระบบ","neutral")}
+    ${realStores.length?kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(realStores.length),"","ไม่มี presence tracking จริง ใช้ยอด ACTIVE ทั้งหมดแทน","neutral"):kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
+    ${realUserStats?kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(realUserStats.newStores),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",fmt(realUserStats.uniqueUsers),"","all-time (ไม่ใช่ Total Footfall)","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
+    ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
+    ${kpi("Revenue / Active Venue","—","","ไม่มี table รายได้ในระบบ","neutral")}
   </div>
   <div class="grid two-even">
     ${/* ร้านจริง (backend set-location) มีแค่ storeId/name/lat/lng/status ไม่มีฟิลด์จังหวัดผูกร้านเลย
@@ -436,7 +436,7 @@ function partnersPage(d,p){
     ${realStores.length
       ?card("จำนวนร้านแยกตามจังหวัด","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด (มีแค่ lat/lng)",`<div class="k-value">—</div>`)
       :card("จำนวนร้านแยกตามจังหวัด","Bar chart อ่านการเปรียบเทียบได้ตรงกว่า Map (ยังเป็น mock — DB ไม่มีฟิลด์จังหวัดผูกร้าน)",barRows(prov.map(x=>[x.province,x.stores,fmt(x.stores)])))}
-    ${realUserStats?card("User Profile","เพศและอายุของผู้ใช้ทั้งหมด (all-time, จาก DB จริง — ไม่แยกรายจังหวัดเพราะ DB ไม่มีข้อมูลนี้)",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",realUserStats.ageBreakdown.a20,fmt(realUserStats.ageBreakdown.a20)],["31–40",realUserStats.ageBreakdown.a31,fmt(realUserStats.ageBreakdown.a31)],["41–50",realUserStats.ageBreakdown.a41,fmt(realUserStats.ageBreakdown.a41)],["51–60",realUserStats.ageBreakdown.a51,fmt(realUserStats.ageBreakdown.a51)],["61–70",realUserStats.ageBreakdown.a61,fmt(realUserStats.ageBreakdown.a61)]])}`):card("Province Profile","เพศ อายุ และ Interaction ของ Scope จังหวัด",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",d.male],["หญิง",d.female],["LGBTQ",d.lgbtq]],d.unique)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",d.a20,fmt(d.a20)],["31–40",d.a31,fmt(d.a31)],["41–50",d.a41,fmt(d.a41)],["51–60",d.a51,fmt(d.a51)],["61–70",d.a61,fmt(d.a61)]])}`)}
+    ${realUserStats?card("User Profile","เพศและอายุของผู้ใช้ทั้งหมด (all-time — ไม่แยกรายจังหวัดเพราะ DB ไม่มีข้อมูลนี้)",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",realUserStats.ageBreakdown.a20,fmt(realUserStats.ageBreakdown.a20)],["31–40",realUserStats.ageBreakdown.a31,fmt(realUserStats.ageBreakdown.a31)],["41–50",realUserStats.ageBreakdown.a41,fmt(realUserStats.ageBreakdown.a41)],["51–60",realUserStats.ageBreakdown.a51,fmt(realUserStats.ageBreakdown.a51)],["61–70",realUserStats.ageBreakdown.a61,fmt(realUserStats.ageBreakdown.a61)]])}`):card("Province Profile","เพศ อายุ และ Interaction ของ Scope จังหวัด",`<h4 style="margin:0 0 8px">สัดส่วนเพศ</h4>${stacked([["ชาย",d.male],["หญิง",d.female],["LGBTQ",d.lgbtq]],d.unique)}<h4 style="margin:18px 0 8px">ช่วงอายุ</h4>${barRows([["20–30",d.a20,fmt(d.a20)],["31–40",d.a31,fmt(d.a31)],["41–50",d.a41,fmt(d.a41)],["51–60",d.a51,fmt(d.a51)],["61–70",d.a61,fmt(d.a61)]])}`)}
   </div>
   ${realStores.length
     ?card("Province Comparison","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด จัดอันดับรายจังหวัดไม่ได้",`<div class="k-value">—</div>`)
@@ -446,7 +446,7 @@ function partnersPage(d,p){
        มีแค่ users/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ส่วนจังหวัด/Repeat/NSC/รายได้
        ไม่มีข้อมูลจริงรองรับเลยเว้นว่างไว้ (ตามที่ขอ) ไม่มีร้านจริงเลย fallback กลับไปใช้ mock เหมือนเดิม */""}
     ${realStoreStats.length
-      ?card("ร้านใน Scope","จาก DB จริง ต่อร้าน — จังหวัด/Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยเว้นว่างไว้",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],realStoreStats.map(r=>[r.venue,"—",fmt(r.uniqueUsers),fmt(r.engagement),"—","—","—"]),realStoreStats.map(r=>mobileCard(r.venue,"จาก DB จริง",fmt(r.uniqueUsers)+" users","",[["Engagement",fmt(r.engagement)],["Repeat","—"],["NSC","—"],["รายได้","—"]]))))
+      ?card("ร้านใน Scope","ต่อร้าน — จังหวัด/Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยเว้นว่างไว้",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],realStoreStats.map(r=>[r.venue,"—",fmt(r.uniqueUsers),fmt(r.engagement),"—","—","—"]),realStoreStats.map(r=>mobileCard(r.venue,"",fmt(r.uniqueUsers)+" users","",[["Engagement",fmt(r.engagement)],["Repeat","—"],["NSC","—"],["รายได้","—"]]))))
       :card("ร้านใน Scope","เมื่อ Scope เป็นจังหวัดหรือร้าน ตารางจะลดตาม Scope โดยอัตโนมัติ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",desktopAndMobileTable(["ร้าน","จังหวัด","Users","Engagement","Repeat","NSC","รายได้"],rank.rows.map(r=>[r.venue,r.province,fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map(r=>mobileCard(r.venue,r.province,fmt(r.unique)+" users","",[["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]]))))}
     ${realStores.length
       ?card("แนวโน้มจังหวัด","ไม่มีข้อมูลจริง — ร้านจริงไม่มีฟิลด์จังหวัด แยกแนวโน้มรายจังหวัดไม่ได้",`<div class="k-value">—</div>`)
@@ -467,11 +467,11 @@ function usersPage(d,p){
     ${kpi("กลับมาร้านเดิม",fmt(d.sameVenue),pct(change(d.sameVenue,p.sameVenue)),"Same-venue return","good")}
     ${kpi("กลับมา NearSip แต่เปลี่ยนร้าน",fmt(d.crossVenue),pct(change(d.crossVenue,p.crossVenue)),"Cross-venue return","good")}
     */""}
-    ${realUserStats?kpi("ผู้ใช้ Unique",fmt(realUserStats.uniqueUsers),"จาก DB จริง","all-time","neutral"):kpi("ผู้ใช้ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
-    ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"จาก DB จริง",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
-    ${realUserStats?kpi("ผู้ใช้เดิม",fmt(realUserStats.existingUsers),"จาก DB จริง","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
-    ${kpi("กลับมาร้านเดิม","—","ไม่มีข้อมูลใน DB","ไม่มี tracking การเข้าร้านแยกรายครั้ง","neutral")}
-    ${kpi("กลับมา NearSip แต่เปลี่ยนร้าน","—","ไม่มีข้อมูลใน DB","มีร้านจริงแค่ 1 ร้าน วัด cross-venue ไม่ได้","neutral")}
+    ${realUserStats?kpi("ผู้ใช้ Unique",fmt(realUserStats.uniqueUsers),"","all-time","neutral"):kpi("ผู้ใช้ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้เดิม",fmt(realUserStats.existingUsers),"","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
+    ${kpi("กลับมาร้านเดิม","—","","ไม่มี tracking การเข้าร้านแยกรายครั้ง","neutral")}
+    ${kpi("กลับมา NearSip แต่เปลี่ยนร้าน","—","","มีร้านจริงแค่ 1 ร้าน วัด cross-venue ไม่ได้","neutral")}
   </div>
   <div class="grid two-even">
     ${/* เดิม: Visit Frequency mock — คอมเมนต์ไว้เป็น fallback
@@ -481,8 +481,8 @@ function usersPage(d,p){
     ${card("Segment Insight","ใช้ Selector แทนการแสดงทุก Segment พร้อมกัน (ยังเป็น mock)",`<div class="metric-toolbar"><div class="field"><label for="segmentSelect">กลุ่มที่ต้องการดู</label><select id="segmentSelect"><option value="frequent">มาบ่อยที่สุด</option><option value="engagement">Engagement สูงสุด</option><option value="repeat">Repeat สูงสุด</option><option value="nsc">NSC Usage สูงสุด</option></select></div></div><div class="stat" style="margin-top:14px"><b>${segmentMap[state.segmentMetric]}</b><p>${g} · อายุ ${a}</p></div>`)}
   </div>
   <div class="grid two-even">
-    ${realUserStats?card("สัดส่วนเพศ","ชาย / หญิง / LGBTQ (all-time, จาก DB จริง)",stacked([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers)):card("สัดส่วนเพศ","ชาย / หญิง / LGBTQ",stacked(genders,d.unique))}
-    ${realUserStats?card("ช่วงอายุ","20–30 / 31–40 / 41–50 / 51–60 / 61–70 (all-time, จาก DB จริง)",barRows([["20–30",realUserStats.ageBreakdown.a20,fmt(realUserStats.ageBreakdown.a20)],["31–40",realUserStats.ageBreakdown.a31,fmt(realUserStats.ageBreakdown.a31)],["41–50",realUserStats.ageBreakdown.a41,fmt(realUserStats.ageBreakdown.a41)],["51–60",realUserStats.ageBreakdown.a51,fmt(realUserStats.ageBreakdown.a51)],["61–70",realUserStats.ageBreakdown.a61,fmt(realUserStats.ageBreakdown.a61)]])):card("ช่วงอายุ","20–30 / 31–40 / 41–50 / 51–60 / 61–70",barRows(ages.map(x=>[x[0],x[1],fmt(x[1])])))}
+    ${realUserStats?card("สัดส่วนเพศ","ชาย / หญิง / LGBTQ (all-time)",stacked([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers)):card("สัดส่วนเพศ","ชาย / หญิง / LGBTQ",stacked(genders,d.unique))}
+    ${realUserStats?card("ช่วงอายุ","20–30 / 31–40 / 41–50 / 51–60 / 61–70 (all-time)",barRows([["20–30",realUserStats.ageBreakdown.a20,fmt(realUserStats.ageBreakdown.a20)],["31–40",realUserStats.ageBreakdown.a31,fmt(realUserStats.ageBreakdown.a31)],["41–50",realUserStats.ageBreakdown.a41,fmt(realUserStats.ageBreakdown.a41)],["51–60",realUserStats.ageBreakdown.a51,fmt(realUserStats.ageBreakdown.a51)],["61–70",realUserStats.ageBreakdown.a61,fmt(realUserStats.ageBreakdown.a61)]])):card("ช่วงอายุ","20–30 / 31–40 / 41–50 / 51–60 / 61–70",barRows(ages.map(x=>[x[0],x[1],fmt(x[1])])))}
   </div>
   <div class="grid two-even">
     ${/* เดิม: ไม่มีข้อมูลนี้ — คอมเมนต์ไว้เป็น fallback
@@ -495,26 +495,26 @@ function usersPage(d,p){
 function engagementPage(d,p){
   // เดิม: summary ใช้ d.engagementRate/d.engagementPerUser/d.engagementPerSession (mock) — คอมเมนต์ไว้เป็น fallback
   // const summary=`${card("Engagement Summary","Summary 3 metrics โดยไม่เพิ่ม Headline KPI Cards",`<div class="summary-strip">...`)}`;
-  const summary=realUserStats?`${card("Engagement Summary","จาก DB จริง — cheers+chats / ผู้ใช้ (ไม่รวม Match เพราะไม่มี concept นี้ใน DB)",`<div class="summary-strip"><div class="stat"><b>Engagement Rate รวม</b><strong>${realUserStats.engagementRate.toFixed(1)}%</strong><p>จาก DB จริง (engaged/unique users)</p></div><div class="stat"><b>Engagement ต่อผู้ใช้</b><strong>${((realUserStats.cheersTotal+realUserStats.chatsTotal)/Math.max(1,realUserStats.uniqueUsers)).toFixed(1)}</strong><p>(cheers+chats) / uniqueUsers</p></div><div class="stat"><b>Engagement ต่อ Session</b><strong>—</strong><p>ไม่มีข้อมูล session สะสมในอดีตให้คำนวณ</p></div></div>`)}`:`${card("Engagement Summary","Summary 3 metrics โดยไม่เพิ่ม Headline KPI Cards",`<div class="summary-strip"><div class="stat"><b>Engagement Rate รวม</b><strong>${d.engagementRate.toFixed(1)}%</strong><p>${pp(d.engagementRate-p.engagementRate)} เทียบ ${compareLabel()}</p></div><div class="stat"><b>Engagement ต่อผู้ใช้</b><strong>${d.engagementPerUser.toFixed(1)}</strong><p>${pct(change(d.engagementPerUser,p.engagementPerUser))} เทียบ ${compareLabel()}</p></div><div class="stat"><b>Engagement ต่อ Session</b><strong>${d.engagementPerSession.toFixed(1)}</strong><p>${pct(change(d.engagementPerSession,p.engagementPerSession))} เทียบ ${compareLabel()}</p></div></div>`)}`;
+  const summary=realUserStats?`${card("Engagement Summary","cheers+chats / ผู้ใช้ (ไม่รวม Match เพราะไม่มี concept นี้ใน DB)",`<div class="summary-strip"><div class="stat"><b>Engagement Rate รวม</b><strong>${realUserStats.engagementRate.toFixed(1)}%</strong><p>(engaged/unique users)</p></div><div class="stat"><b>Engagement ต่อผู้ใช้</b><strong>${((realUserStats.cheersTotal+realUserStats.chatsTotal)/Math.max(1,realUserStats.uniqueUsers)).toFixed(1)}</strong><p>(cheers+chats) / uniqueUsers</p></div><div class="stat"><b>Engagement ต่อ Session</b><strong>—</strong><p>ไม่มีข้อมูล session สะสมในอดีตให้คำนวณ</p></div></div>`)}`:`${card("Engagement Summary","Summary 3 metrics โดยไม่เพิ่ม Headline KPI Cards",`<div class="summary-strip"><div class="stat"><b>Engagement Rate รวม</b><strong>${d.engagementRate.toFixed(1)}%</strong><p>${pp(d.engagementRate-p.engagementRate)} เทียบ ${compareLabel()}</p></div><div class="stat"><b>Engagement ต่อผู้ใช้</b><strong>${d.engagementPerUser.toFixed(1)}</strong><p>${pct(change(d.engagementPerUser,p.engagementPerUser))} เทียบ ${compareLabel()}</p></div><div class="stat"><b>Engagement ต่อ Session</b><strong>${d.engagementPerSession.toFixed(1)}</strong><p>${pct(change(d.engagementPerSession,p.engagementPerSession))} เทียบ ${compareLabel()}</p></div></div>`)}`;
   let body="";
   if(state.engageTab==="cheers"){
     if(realUserStats){
       const cb=realUserStats.cheersByStatus,sent=realUserStats.cheersTotal,acceptance=sent>0?cb.accepted/sent*100:0;
-      body=`<div class="grid kpis">${kpi("Cheers ที่ส่งทั้งหมด",fmt(sent),"จาก DB จริง","all-time","neutral")}${kpi("ผู้ส่ง Cheers แบบ Unique",fmt(realUserStats.cheersSenders),"จาก DB จริง","all-time","neutral")}${kpi("ผู้ได้รับ Cheers แบบ Unique",fmt(realUserStats.cheersReceivers),"จาก DB จริง","all-time","neutral")}${kpi("Cheers Acceptance Rate",acceptance.toFixed(1)+"%","จาก DB จริง","Accepted / Sent","neutral")}</div><div class="grid two-even">${card("ผลลัพธ์ของ Cheers","ตอบรับ / ปฏิเสธ / รอตอบรับ (จาก DB จริง — ไม่มี concept 'หมดอายุ' ใน DB จึงใช้ Pending แทน)",barRows([["ตอบรับ",cb.accepted,fmt(cb.accepted)],["ปฏิเสธ",cb.refused,fmt(cb.refused)],["รอตอบรับ (Pending)",cb.pending,fmt(cb.pending)]]))}${card("Cheers per Active User","จำนวน Cheers ต่อผู้ใช้ (จาก DB จริง)",`<div class="k-value">${(sent/Math.max(1,realUserStats.uniqueUsers)).toFixed(1)}</div>`)}</div>`;
+      body=`<div class="grid kpis">${kpi("Cheers ที่ส่งทั้งหมด",fmt(sent),"","all-time","neutral")}${kpi("ผู้ส่ง Cheers แบบ Unique",fmt(realUserStats.cheersSenders),"","all-time","neutral")}${kpi("ผู้ได้รับ Cheers แบบ Unique",fmt(realUserStats.cheersReceivers),"","all-time","neutral")}${kpi("Cheers Acceptance Rate",acceptance.toFixed(1)+"%","","Accepted / Sent","neutral")}</div><div class="grid two-even">${card("ผลลัพธ์ของ Cheers","ตอบรับ / ปฏิเสธ / รอตอบรับ (ไม่มี concept 'หมดอายุ' ใน DB จึงใช้ Pending แทน)",barRows([["ตอบรับ",cb.accepted,fmt(cb.accepted)],["ปฏิเสธ",cb.refused,fmt(cb.refused)],["รอตอบรับ (Pending)",cb.pending,fmt(cb.pending)]]))}${card("Cheers per Active User","จำนวน Cheers ต่อผู้ใช้",`<div class="k-value">${(sent/Math.max(1,realUserStats.uniqueUsers)).toFixed(1)}</div>`)}</div>`;
     }else{
       body=`<div class="grid kpis">${kpi("Cheers ที่ส่งทั้งหมด",fmt(d.cheersSent),pct(change(d.cheersSent,p.cheersSent)),periodLabel(),"good")}${kpi("ผู้ส่ง Cheers แบบ Unique",fmt(d.cheersSenders),pct(change(d.cheersSenders,p.cheersSenders)),periodLabel(),"good")}${kpi("ผู้ได้รับ Cheers แบบ Unique",fmt(d.cheersReceivers),pct(change(d.cheersReceivers,p.cheersReceivers)),periodLabel(),"good")}${kpi("Cheers Acceptance Rate",d.cheersAcceptance.toFixed(1)+"%",pp(d.cheersAcceptance-p.cheersAcceptance),"Accepted / Sent","good")}</div><div class="grid two-even">${card("ผลลัพธ์ของ Cheers","ตอบรับ ปฏิเสธ และหมดอายุ",barRows([["ตอบรับ",d.accepted,fmt(d.accepted)],["ปฏิเสธ",d.rejected,fmt(d.rejected)],["หมดอายุ / ไม่มีการตอบ",d.expired,fmt(d.expired)]]))}${card("Cheers per Active User","จำนวน Cheers ต่อผู้ใช้ NearSip ที่ Active",`<div class="k-value">${d.cheersPerActive.toFixed(1)}</div><p>${pct(change(d.cheersPerActive,p.cheersPerActive))} เทียบ ${compareLabel()}</p>`)}</div>`;
     }
   }
-  if(state.engageTab==="match")body=`<div class="grid kpis">${kpi("Match ทั้งหมด","—","ไม่มีข้อมูลใน DB","ไม่มี concept 'match' ใน schema เลย","neutral")}${kpi("ผู้ใช้เกิด Match ≥1 ครั้ง","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("Match Rate","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("Match มากกว่าหนึ่งครั้ง","—","ไม่มีข้อมูลใน DB","","neutral")}</div>`;
+  if(state.engageTab==="match")body=`<div class="grid kpis">${kpi("Match ทั้งหมด","—","","ไม่มี concept 'match' ใน schema เลย","neutral")}${kpi("ผู้ใช้เกิด Match ≥1 ครั้ง","—","","","neutral")}${kpi("Match Rate","—","","","neutral")}${kpi("Match มากกว่าหนึ่งครั้ง","—","","","neutral")}</div>`;
   if(state.engageTab==="chat"){
-    if(realUserStats)body=`<div class="grid kpis">${kpi("Chat เริ่มต้นสำเร็จ",fmt(realUserStats.chatsTotal),"จาก DB จริง","all-time","neutral")}${kpi("ข้อความทั้งหมด",fmt(realUserStats.messagesTotal),"จาก DB จริง","all-time (แทน Meaningful Chat)","neutral")}${kpi("Chat Activation Rate","—","ไม่มีข้อมูลใน DB","ต้องหารด้วย Match ซึ่งไม่มี concept นี้ใน DB","neutral")}</div>`;
+    if(realUserStats)body=`<div class="grid kpis">${kpi("Chat เริ่มต้นสำเร็จ",fmt(realUserStats.chatsTotal),"","all-time","neutral")}${kpi("ข้อความทั้งหมด",fmt(realUserStats.messagesTotal),"","all-time (แทน Meaningful Chat)","neutral")}${kpi("Chat Activation Rate","—","","ต้องหารด้วย Match ซึ่งไม่มี concept นี้ใน DB","neutral")}</div>`;
     else body=`<div class="grid kpis">${kpi("Chat เริ่มต้นสำเร็จ",fmt(d.chats),pct(change(d.chats,p.chats)),periodLabel(),"good")}${kpi("Meaningful Chat",fmt(d.meaningfulChats),pct(change(d.meaningfulChats,p.meaningfulChats)),periodLabel(),"good")}${kpi("Chat Activation Rate",d.chatActivation.toFixed(1)+"%",pp(d.chatActivation-p.chatActivation),"Chats / Matches","good")}</div>`;
   }
   if(state.engageTab==="retention"){
     const vf=realUserStats?visitFrequency(realUserStats.loginLogs):null;
     if(realUserStats){
-      body=`<div class="grid kpis">${kpi("Repeat 7 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,7)),"จาก DB จริง","login_log","neutral")}${kpi("Repeat 30 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,30)),"จาก DB จริง","login_log","neutral")}${kpi("Repeat 60 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,60)),"จาก DB จริง","login_log","neutral")}${kpi("Repeat 90 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,90)),"จาก DB จริง","login_log","neutral")}${kpi("กลับมาร้านเดิม 7/30 วัน","—","ไม่แยกจาก Repeat ด้านบน","มีร้านจริงแค่ 1 ร้าน","neutral")}</div>
-      <div class="grid two-even">${card("Cross-venue Repeat","ไม่มีข้อมูลใน DB — มีร้านจริงแค่ 1 ร้าน วัด cross-venue ไม่ได้",`<div class="k-value">—</div>`)}${card("Visit Frequency","ผู้ใช้ที่มา 1/2/3/4+ ครั้ง (จาก login_log จริง)",barRows([["1 ครั้ง",vf.one,fmt(vf.one)],["2 ครั้ง",vf.two,fmt(vf.two)],["3 ครั้ง",vf.three,fmt(vf.three)],["4+ ครั้ง",vf.fourPlus,fmt(vf.fourPlus)]]))}</div>
+      body=`<div class="grid kpis">${kpi("Repeat 7 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,7)),"","login_log","neutral")}${kpi("Repeat 30 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,30)),"","login_log","neutral")}${kpi("Repeat 60 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,60)),"","login_log","neutral")}${kpi("Repeat 90 วัน",fmt(repeatUsersWithinDays(realUserStats.loginLogs,90)),"","login_log","neutral")}${kpi("กลับมาร้านเดิม 7/30 วัน","—","ไม่แยกจาก Repeat ด้านบน","มีร้านจริงแค่ 1 ร้าน","neutral")}</div>
+      <div class="grid two-even">${card("Cross-venue Repeat","มีร้านจริงแค่ 1 ร้าน วัด cross-venue ไม่ได้",`<div class="k-value">—</div>`)}${card("Visit Frequency","ผู้ใช้ที่มา 1/2/3/4+ ครั้ง (จาก login_log จริง)",barRows([["1 ครั้ง",vf.one,fmt(vf.one)],["2 ครั้ง",vf.two,fmt(vf.two)],["3 ครั้ง",vf.three,fmt(vf.three)],["4+ ครั้ง",vf.fourPlus,fmt(vf.fourPlus)]]))}</div>
       ${card("Retention Cohort","แยกตามเดือนที่เริ่มใช้ (ยังเป็น mock — ข้อมูลจริงน้อยเกินไปจะทำ cohort ที่มีความหมาย)",`<div class="heatmap-wrap"><div class="heatmap"><div class="h">Cohort</div><div class="h">M0</div><div class="h">M1</div><div class="h">M2</div><div class="h">M3</div><div class="h">M4</div><div class="h">M5</div><div class="h">M6</div>${["Jan","Feb","Mar","Apr","May","Jun"].map((m,ri)=>`<div class="r">${m}</div>${[100,58-ri,48-ri,41-ri,36-ri,31-ri,28-ri].map((v,ci)=>`<div class="${ci===0?"c4":v>=48?"c3":v>=36?"c2":"c1"}">${ri+ci>8?"—":v+"%"}</div>`).join("")}`).join("")}</div></div>`)}
       <div class="grid two-even" style="margin-top:14px">${card("Retention แยกร้าน","ยังเป็น mock — มีร้านจริงแค่ 1 ร้าน",barRows(rankingData(d,"repeat").rows.slice(0,6).map(r=>[r.venue,r.value,r.value.toFixed(1)+"%"])))}${card("Retention แยกจังหวัด","ยังเป็น mock — DB ไม่มีฟิลด์จังหวัด",barRows(provinceData().map(x=>[x.province,32+(hash(x.province+"ret")%180)/10,(32+(hash(x.province+"ret")%180)/10).toFixed(1)+"%"])))} </div>`;
     }else{
@@ -551,13 +551,13 @@ function timePage(d,p,realtime=false){
     if(realSeries){const arr=realSeries[m],max=Math.max(...arr);return max>0?labels[arr.indexOf(max)]:"—"}
     const arr=timeSeries(totals[m],points,"peak-"+m);return labels[arr.indexOf(Math.max(...arr))]
   };
-  return`${hero(realtime?"Tonight Timeline & Peak":"Time & Night Pattern",realSeries?"จาก DB จริง (login_log/cheers/chats) — Match/NSC/Top-up ไม่มี table ใน DB จึงเป็น 0 เสมอ":"กราฟ Timeline เดียว เปลี่ยน Metric และ Granularity ได้",realtime?"Mock Real-time Data":state.businessNight)}
+  return`${hero(realtime?"Tonight Timeline & Peak":"Time & Night Pattern",realSeries?"(login_log/cheers/chats) — Match/NSC/Top-up ไม่มี table ใน DB จึงเป็น 0 เสมอ":"กราฟ Timeline เดียว เปลี่ยน Metric และ Granularity ได้",realtime?"Mock Real-time Data":state.businessNight)}
   <div class="grid kpis">
-    ${kpi("Peak Users Time",peakMetric("users"),realSeries?"จาก DB จริง (login_log)":"ช่วงเวลาสูงสุด","Business Night","neutral")}
-    ${kpi("Peak Cheers Time",peakMetric("cheers"),realSeries?"จาก DB จริง":"ช่วงเวลาสูงสุด","Business Night","neutral")}
-    ${kpi("Peak Match Time",peakMetric("match"),realSeries?"ไม่มีข้อมูลใน DB":"ช่วงเวลาสูงสุด","Business Night","neutral")}
-    ${kpi("Peak NSC Usage Time",peakMetric("nsc"),realSeries?"ไม่มีข้อมูลใน DB":"ช่วงเวลาสูงสุด","Business Night","neutral")}
-    ${kpi("Peak Top-up Time",peakMetric("topup"),realSeries?"ไม่มีข้อมูลใน DB":"ช่วงเวลาสูงสุด","Business Night","neutral")}
+    ${kpi("Peak Users Time",peakMetric("users"),realSeries?"(login_log)":"ช่วงเวลาสูงสุด","Business Night","neutral")}
+    ${kpi("Peak Cheers Time",peakMetric("cheers"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
+    ${kpi("Peak Match Time",peakMetric("match"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
+    ${kpi("Peak NSC Usage Time",peakMetric("nsc"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
+    ${kpi("Peak Top-up Time",peakMetric("topup"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
   </div>
   ${card("Timeline","Metric selector และ Time granularity",`<div class="metric-toolbar"><div class="field"><label for="timeMetricSelect">Metric</label><select id="timeMetricSelect"><option value="users">ผู้ใช้ NearSip</option><option value="cheers">Cheers</option><option value="match">Match</option><option value="chat">Chat</option><option value="nsc">NSC Usage</option><option value="topup">Top-up</option></select></div><div class="seg"><button data-gran="15m" class="${state.granularity==="15m"?"active":""}">15 นาที</button><button data-gran="30m" class="${state.granularity==="30m"?"active":""}">30 นาที</button><button data-gran="1h" class="${state.granularity==="1h"?"active":""}">1 ชั่วโมง</button></div></div>${lineChart([{name:realtime?"คืนนี้":periodLabel(),values:current},{name:realtime?"คืนเทียบเคียง":compareLabel(),values:compare}],labels,metrics[state.timeMetric]+" ตามเวลา",state.timeMetric==="nsc"||state.timeMetric==="topup"?"NSC":"จำนวน")}`)}
   <div class="grid two-even" style="margin-top:14px">
@@ -565,7 +565,9 @@ function timePage(d,p,realtime=false){
     ${card("รูปแบบเวลาในแต่ละวันของสัปดาห์","Heatmap สรุป ไม่เพิ่มกราฟแยกทุกวัน",`<div class="heatmap-wrap">...`)}
     */""}
     ${realUserStats?(()=>{const hm=loginHeatmap(realUserStats.loginLogs);return card("รูปแบบเวลาในแต่ละวันของสัปดาห์","จาก login_log จริง (all-time)",`<div class="heatmap-wrap"><div class="heatmap"><div class="h">เวลา</div>${["จ","อ","พ","พฤ","ศ","ส","อา"].map(x=>`<div class="h">${x}</div>`).join("")}${["18–20","20–22","22–00","00–02"].map((t,ti)=>`<div class="r">${t}</div>${[0,1,2,3,4,5,6].map(di=>{const v=hm[di][ti];return`<div class="${v>=4?"c4":v>=3?"c3":v>=1?"c2":"c1"}">${v}</div>`}).join("")}`).join("")}</div></div>`)})():card("รูปแบบเวลาในแต่ละวันของสัปดาห์","Heatmap สรุป ไม่เพิ่มกราฟแยกทุกวัน",`<div class="heatmap-wrap"><div class="heatmap"><div class="h">เวลา</div>${["จ","อ","พ","พฤ","ศ","ส","อา"].map(x=>`<div class="h">${x}</div>`).join("")}${["18–20","20–22","22–00","00–02"].map((t,ri)=>`<div class="r">${t}</div>${[0,1,2,3,4,5,6].map(di=>{const v=45+hash(t+di+scopeName())%50;return`<div class="${v>80?"c4":v>68?"c3":v>55?"c2":"c1"}">${v}</div>`}).join("")}`).join("")}</div></div>`)}
+    ${/* Peak Comparison: ร้าน จังหวัด และประเทศ ยังเป็น mock — มีร้านจริงแค่ 1 ร้าน ไม่มีจังหวัดจริงให้เปรียบเทียบ — คอมเมนต์ไว้ก่อน
     ${card("Peak Comparison","ร้าน จังหวัด และประเทศ (ยังเป็น mock — มีร้านจริงแค่ 1 ร้าน ไม่มีจังหวัดจริงให้เปรียบเทียบ)",desktopAndMobileTable(["ระดับ","Peak Users","Peak Cheers","Peak Match","Peak NSC","Peak Top-up"],[["ร้าน","22:30","23:00","23:15","23:30","23:45"],["จังหวัด","22:45","23:15","23:30","23:45","00:00"],["ประเทศไทย","23:00","23:15","23:45","00:00","00:15"]],[mobileCard("ร้าน","Scope ระดับร้าน","22:30","",[["Cheers","23:00"],["Match","23:15"],["NSC","23:30"],["Top-up","23:45"]]),mobileCard("จังหวัด","Scope ระดับจังหวัด","22:45","",[["Cheers","23:15"],["Match","23:30"],["NSC","23:45"],["Top-up","00:00"]]),mobileCard("ประเทศไทย","Scope ระดับประเทศ","23:00","",[["Cheers","23:15"],["Match","23:45"],["NSC","00:00"],["Top-up","00:15"]])]))}
+    */""}
   </div>`
 }
 function nscRevenuePage(d,p){
@@ -573,7 +575,7 @@ function nscRevenuePage(d,p){
   if(state.nscTab==="nsc"){
     const topStore=rankingData(d,"nsc").rows[0],topProvince=provinceData().sort((a,b)=>b.nscConsumed-a.nscConsumed)[0],topFeature=["Premium Cheers","Spotlight Profile","VIP Match","Dashboard Insight"][hash(scopeName()+"feature")%4];
     body=`<div class="banner-note" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(255,120,120,.08);border:1px solid rgba(255,120,120,.25)">ไม่มี table เกี่ยวกับ NSC/เงินในระบบจริงเลย — KPI ด้านล่างจึงว่างไว้ ส่วนกราฟ/ตารางที่เหลือยังเป็น mock ตัวอย่างประกอบ</div>
-    <div class="grid kpis">${kpi("NSC Purchased","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายการ Top-up","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("ผู้เติม NSC แบบ Unique","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("ผู้เติมซ้ำ","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("NSC Consumed","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("NSC Outstanding","—","ไม่มีข้อมูลใน DB","","neutral")}</div>
+    <div class="grid kpis">${kpi("NSC Purchased","—","","","neutral")}${kpi("รายการ Top-up","—","","","neutral")}${kpi("ผู้เติม NSC แบบ Unique","—","","","neutral")}${kpi("ผู้เติมซ้ำ","—","","","neutral")}${kpi("NSC Consumed","—","","","neutral")}${kpi("NSC Outstanding","—","","","neutral")}</div>
     <div class="grid two">${card("Purchased → Consumed → Outstanding","Stock-and-flow Visualization",`<div class="stock-flow"><div class="stock-box"><span>Purchased</span><b>${fmt(d.nscPurchased)}</b></div><div class="arrow">→</div><div class="stock-box"><span>Consumed</span><b>${fmt(d.nscConsumed)}</b></div><div class="arrow">→</div><div class="stock-box"><span>Outstanding</span><b>${fmt(d.outstanding)}</b></div></div><p style="margin-top:12px">NSC Transfer ไม่ถูกนำเสนอเป็นรายได้ใหม่</p>`)}${card("Additional NSC Metrics","รายละเอียดเปิดหลัง Headline",`<div class="table-wrap"><table><tbody><tr><td>ยอดเติมเฉลี่ยต่อรายการ</td><td>${fmt(d.avgTopup)} NSC</td></tr><tr><td>ยอดเติมเฉลี่ยต่อผู้เติม</td><td>${fmt(d.avgPerTopupper)} NSC</td></tr><tr><td>Credit Burn Rate</td><td>${d.burnRate.toFixed(1)}%</td></tr><tr><td>ผู้ถือ NSC แต่ยังไม่เคยใช้</td><td>${fmt(d.holdersNeverUsed)}</td></tr><tr><td>NSC / Active User</td><td>${d.nscPerActiveUser.toFixed(1)}</td></tr><tr><td>NSC / Active Venue</td><td>${fmt(d.nscPerVenue)}</td></tr><tr><td>Purchased / Consumed</td><td>${d.purchaseConsumedRatio.toFixed(2)}x</td></tr><tr><td>Transfer / Consumed</td><td>${d.transferConsumedRatio.toFixed(1)}%</td></tr><tr><td>เติมจนใช้ครั้งแรก</td><td>${d.firstUseHours.toFixed(1)} ชั่วโมง</td></tr></tbody></table></div>`)} </div>
     <div class="grid three">${card("NSC ใช้ปลดล็อก","นักเที่ยวและ Dashboard",barRows([["ฟีเจอร์นักเที่ยว",d.featureTourist,fmt(d.featureTourist)],["ข้อมูล Dashboard",d.dashboardUnlock,fmt(d.dashboardUnlock)],["Transfer",d.transfer,fmt(d.transfer)]]))}${card("ฟีเจอร์ใช้ NSC สูงสุด","Top feature",`<div class="k-value">${topFeature}</div>`)}${card("Top NSC Entity","ร้านและจังหวัด",`<div class="stat-list"><div class="stat"><b>ร้าน</b><p>${topStore.venue} · ${fmt(topStore.nscConsumed)} NSC</p></div><div class="stat"><b>จังหวัด</b><p>${topProvince.province} · ${fmt(topProvince.nscConsumed)} NSC</p></div></div>`)} </div>`;
   }else{
@@ -585,7 +587,7 @@ function nscRevenuePage(d,p){
     if(state.revenueRank==="province")rankRows=prov.map(x=>[x.province,x.revenue]);
     if(state.revenueRank==="venue")rankRows=stores.map(x=>[x.venue,x.rev]);
     body=`<div class="banner-note" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;background:rgba(255,120,120,.08);border:1px solid rgba(255,120,120,.25)">ไม่มี table เกี่ยวกับรายได้ในระบบจริงเลย — KPI ด้านล่างจึงว่างไว้ ส่วนกราฟ/ตารางที่เหลือยังเป็น mock ตัวอย่างประกอบ</div>
-    <div class="grid kpis">${kpi("เงินรับจากการซื้อ NSC","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายได้ Dashboard Unlock","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายได้ Feature Unlock","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายได้ที่รับรู้ทั้งหมด","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายได้เฉลี่ยต่อร้าน","—","ไม่มีข้อมูลใน DB","","neutral")}${kpi("รายได้เฉลี่ยต่อ Active Venue","—","ไม่มีข้อมูลใน DB","","neutral")}</div>
+    <div class="grid kpis">${kpi("เงินรับจากการซื้อ NSC","—","","","neutral")}${kpi("รายได้ Dashboard Unlock","—","","","neutral")}${kpi("รายได้ Feature Unlock","—","","","neutral")}${kpi("รายได้ที่รับรู้ทั้งหมด","—","","","neutral")}${kpi("รายได้เฉลี่ยต่อร้าน","—","","","neutral")}${kpi("รายได้เฉลี่ยต่อ Active Venue","—","","","neutral")}</div>
     <div class="grid two">${card("Revenue Trend","รายวัน / รายสัปดาห์ / รายเดือน",`<div class="seg" style="width:max-content"><button data-revtrend="daily" class="${state.revenueTrend==="daily"?"active":""}">รายวัน</button><button data-revtrend="weekly" class="${state.revenueTrend==="weekly"?"active":""}">รายสัปดาห์</button><button data-revtrend="monthly" class="${state.revenueTrend==="monthly"?"active":""}">รายเดือน</button></div>${lineChart([{name:periodLabel(),values:series},{name:compareLabel(),values:prior}],labels,"แนวโน้มรายได้ที่รับรู้","บาท")}`)}${card("Revenue Separation","เงินรับ เครดิต และรายได้ที่รับรู้",`<div class="table-wrap"><table><tbody><tr><td>NSC Purchased</td><td>${fmt(d.nscPurchased)} NSC</td></tr><tr><td>NSC Consumed</td><td>${fmt(d.nscConsumed)} NSC</td></tr><tr><td>NSC Transfer</td><td>${fmt(d.transfer)} NSC</td></tr><tr><td>เงินรับจาก NSC</td><td>${money(d.cashReceived)}</td></tr><tr><td>รายได้ที่รับรู้</td><td>${money(d.recognizedRevenue)}</td></tr></tbody></table></div>`)} </div>
     ${card("Revenue Ranking","ตารางเดียว เปลี่ยน Feature / Province / Venue",`<div class="metric-toolbar"><div class="field"><label for="revenueRankSelect">จัดอันดับตาม</label><select id="revenueRankSelect"><option value="feature">ฟีเจอร์</option><option value="province">จังหวัด</option><option value="venue">ร้าน</option></select></div></div>${desktopAndMobileTable(["#","รายการ","รายได้"],rankRows.map((x,i)=>[i+1,x[0],money(x[1])]),rankRows.map((x,i)=>mobileCard((i+1)+". "+x[0],"Revenue ranking",money(x[1]),"",[])))}`)}`;
   }
@@ -637,7 +639,8 @@ function realtimePage(d,p){
   // เดิม: hero(..., " ") ส่ง note เป็นช่องว่าง ทำให้กล่อง hero-note โชว์ว่างเปล่า — เอาออกตามที่ขอ
   return `${hero("สถานะตอนนี้","รวมข้อมูล Real-time สำคัญทั้งหมดไว้ในหน้าเดียวสำหรับเฝ้าดูแบบสด")}
 
-  <section class="card" style="padding:18px;margin-bottom:16px">
+  <div class="grid" style="margin-bottom:0">
+  <section class="card" style="padding:18px">
     <div class="card-head"><div><h3>Focus Cards — Real-time ที่ต้องเห็นก่อน</h3><p>ตัวเลขใหญ่คือ Real-time ตอนนี้ และตัวเลขเล็กสีทองด้านล่างคือยอดรวมทั้งคืนจนถึงปัจจุบัน</p></div><span class="tag warn">TV Monitoring Ready</span></div>
     <div class="rt-focus-grid">
       ${/* เดิม 4 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
@@ -646,9 +649,9 @@ function realtimePage(d,p){
       ${focusCard({span:"double",tone:"tertiary",pill:"Critical KPI",title:"NSC Usage ตอนนี้",current:fmt(d.nscNow),tonight:fmt(d.nscConsumed),note:"เฝ้าดูแรงใช้ NSC แบบสด พร้อมเทียบยอด NSC Used ทั้งคืน",footer:`<span>Top-up ตอนนี้: ${fmt(Math.round(d.nscNow*1.3))}</span><span>Top-up คืนนี้: ${fmt(d.nscPurchased)}</span>`})}
       ${combinedInteractionCard({cheersNow,cheersNight:d.cheersSent,matchNow,matchNight:d.matches,chatNow,chatNight:d.chats})}
       */""}
-      ${realStores.length?focusCard({span:"double",tone:"primary",pill:"Critical KPI · จาก DB จริง",title:"จำนวนร้าน Active ทั้งหมด",current:fmt(realStores.length),tonight:fmt(realStores.length),note:"set_location ไม่มี concept 'online ขณะนี้' จริง (มีแค่ status ACTIVE แบบ static) จึงแสดงจำนวนร้าน ACTIVE ทั้งหมดแทน",footer:`<span>ร้าน ACTIVE: ${realStores.length} ร้าน</span>`}):focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้านที่ออนไลน์ตอนนี้",current:fmt(d.onlineNow),tonight:fmt(d.onlineTonight),note:"ร้านที่ยัง Online ใน current moment เทียบกับร้านที่เคย Online ตลอดคืนนี้",footer:`<span>ณ ตอนนี้: ${d.onlineNow} ร้าน</span><span>คืนนี้สะสม: ${d.onlineTonight} ร้าน</span>`})}
-      ${realUserStats?focusCard({span:"double",tone:"secondary",pill:"Critical KPI · จาก DB จริง",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(realUserStats.activeSessions),tonight:fmt(realUserStats.uniqueUsers),note:"นับจาก session ที่ยังไม่หมดอายุจริง (expires > now())",footer:`<span>Active session ตอนนี้: ${fmt(realUserStats.activeSessions)}</span><span>ผู้ใช้ทั้งหมด: ${fmt(realUserStats.uniqueUsers)}</span>`}):focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(d.activeNow),tonight:fmt(d.unique),note:"ใช้เพื่อเฝ้าดูปริมาณผู้ใช้ที่กำลัง Active เทียบกับยอดผู้ใช้สะสมคืนนี้",footer:`<span>ผู้ใช้ใหม่ตอนนี้: ${fmt(d.newNow)}</span><span>ผู้ใช้เดิมตอนนี้: ${fmt(d.returningNow)}</span>`})}
-      ${focusCard({span:"double",tone:"tertiary",pill:"ไม่มีข้อมูลใน DB",title:"NSC Usage ตอนนี้",current:"—",tonight:"—",note:"ไม่มี table รายได้/NSC ในระบบเลย",footer:`<span>ไม่มีข้อมูลนี้ใน DB</span>`})}
+      ${realStores.length?focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้าน Active ทั้งหมด",current:fmt(realStores.length),tonight:fmt(realStores.length),footer:`<span>ร้าน ACTIVE: ${realStores.length} ร้าน</span>`}):focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้านที่ออนไลน์ตอนนี้",current:fmt(d.onlineNow),tonight:fmt(d.onlineTonight),note:"ร้านที่ยัง Online ใน current moment เทียบกับร้านที่เคย Online ตลอดคืนนี้",footer:`<span>ณ ตอนนี้: ${d.onlineNow} ร้าน</span><span>คืนนี้สะสม: ${d.onlineTonight} ร้าน</span>`})}
+      ${realUserStats?focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(realUserStats.activeSessions),tonight:fmt(realUserStats.uniqueUsers) ,footer:`<span>Active session ตอนนี้: ${fmt(realUserStats.activeSessions)}</span><span>ผู้ใช้ทั้งหมด: ${fmt(realUserStats.uniqueUsers)}</span>`}):focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(d.activeNow),tonight:fmt(d.unique),note:"ใช้เพื่อเฝ้าดูปริมาณผู้ใช้ที่กำลัง Active เทียบกับยอดผู้ใช้สะสมคืนนี้",footer:`<span>ผู้ใช้ใหม่ตอนนี้: ${fmt(d.newNow)}</span><span>ผู้ใช้เดิมตอนนี้: ${fmt(d.returningNow)}</span>`})}
+      ${focusCard({span:"double",tone:"tertiary",pill:"",title:"NSC Usage ตอนนี้",current:"—",tonight:"—"})}
       ${realUserStats?combinedInteractionCard({cheersNow:realUserStats.cheersTotal,cheersNight:realUserStats.cheersTotal,matchNow:"—",matchNight:"—",chatNow:realUserStats.chatsTotal,chatNight:realUserStats.chatsTotal}):combinedInteractionCard({cheersNow,cheersNight:d.cheersSent,matchNow,matchNight:d.matches,chatNow,chatNight:d.chats})}
     </div>
   </section>
@@ -660,23 +663,23 @@ function realtimePage(d,p){
       ${kpi("หญิง ณ ตอนนี้",fmt(d.fNow),`รวมทั้งคืน ${fmt(d.female)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
       ${kpi("LGBTQ ณ ตอนนี้",fmt(d.lNow),`รวมทั้งคืน ${fmt(d.lgbtq)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
       */""}
-      ${realUserStats?kpi("ชาย (ทั้งหมด)",fmt(realUserStats.genderBreakdown.male),"จาก DB จริง","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("ชาย ณ ตอนนี้",fmt(d.mNow),`รวมทั้งคืน ${fmt(d.male)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
-      ${realUserStats?kpi("หญิง (ทั้งหมด)",fmt(realUserStats.genderBreakdown.female),"จาก DB จริง","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("หญิง ณ ตอนนี้",fmt(d.fNow),`รวมทั้งคืน ${fmt(d.female)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
-      ${realUserStats?kpi("LGBTQ (ทั้งหมด)",fmt(realUserStats.genderBreakdown.lgbtq),"จาก DB จริง","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("LGBTQ ณ ตอนนี้",fmt(d.lNow),`รวมทั้งคืน ${fmt(d.lgbtq)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
+      ${realUserStats?kpi("ชาย (ทั้งหมด)",fmt(realUserStats.genderBreakdown.male),"","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("ชาย ณ ตอนนี้",fmt(d.mNow),`รวมทั้งคืน ${fmt(d.male)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
+      ${realUserStats?kpi("หญิง (ทั้งหมด)",fmt(realUserStats.genderBreakdown.female),"","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("หญิง ณ ตอนนี้",fmt(d.fNow),`รวมทั้งคืน ${fmt(d.female)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
+      ${realUserStats?kpi("LGBTQ (ทั้งหมด)",fmt(realUserStats.genderBreakdown.lgbtq),"","all-time (ไม่แยก \"ตอนนี้\" เพราะไม่มี presence tracking)","neutral"):kpi("LGBTQ ณ ตอนนี้",fmt(d.lNow),`รวมทั้งคืน ${fmt(d.lgbtq)}`,"ตัวเลขใหญ่ = Real-time · ตัวเลขล่าง = สะสมคืนนี้","good")}
     </div>
     <div class="pie-grid">
-      ${realUserStats?card("Gender Pie","สัดส่วนผู้ใช้ทั้งหมด (all-time, จาก DB จริง)",pieChart([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers,"ทั้งหมด\n"+fmt(realUserStats.uniqueUsers)),"<span class='tag info'>จาก DB จริง</span>"):card("Gender Pie","สัดส่วนผู้ใช้ NearSip ที่ Active ตอนนี้",pieChart(genderNow,d.activeNow,"Active\n"+fmt(d.activeNow)),"<span class='tag info'>Current State</span>")}
+      ${realUserStats?card("Gender Pie","สัดส่วนผู้ใช้ทั้งหมด (all-time)",pieChart([["ชาย",realUserStats.genderBreakdown.male],["หญิง",realUserStats.genderBreakdown.female],["LGBTQ",realUserStats.genderBreakdown.lgbtq]],realUserStats.uniqueUsers,"ทั้งหมด\n"+fmt(realUserStats.uniqueUsers)),""):card("Gender Pie","สัดส่วนผู้ใช้ NearSip ที่ Active ตอนนี้",pieChart(genderNow,d.activeNow,"Active\n"+fmt(d.activeNow)),"<span class='tag info'>Current State</span>")}
       ${/* เดิม: Login Breakdown mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
       ${card("Login Breakdown","LINE และ Email พร้อมยอดรวมคืนนี้",`...`,"<span class='tag info'>Current State</span>")}
       */""}
-      ${realUserStats?card("Login Breakdown","จาก DB จริง — LINE/Email ประมาณจาก user.email (ไม่ใช่ field login-method ตรงๆ)",`
+      ${realUserStats?card("Login Breakdown","LINE/Email ประมาณจาก user.email (ไม่ใช่ field login-method ตรงๆ)",`
         <div class="grid kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
-          ${kpi("Login ทั้งหมด (login_log)",fmt(realUserStats.loginLogs.length),"จาก DB จริง","all-time","neutral")}
-          ${kpi("LINE Login (ประมาณ)",fmt(realUserStats.loginChannel.line),"จาก DB จริง","จำนวนผู้ใช้ที่ไม่มี email","neutral")}
-          ${kpi("Email Login (ประมาณ)",fmt(realUserStats.loginChannel.email),"จาก DB จริง","จำนวนผู้ใช้ที่มี email","neutral")}
+          ${kpi("Login ทั้งหมด (login_log)",fmt(realUserStats.loginLogs.length),"","all-time","neutral")}
+          ${kpi("LINE Login (ประมาณ)",fmt(realUserStats.loginChannel.line),"","จำนวนผู้ใช้ที่ไม่มี email","neutral")}
+          ${kpi("Email Login (ประมาณ)",fmt(realUserStats.loginChannel.email),"","จำนวนผู้ใช้ที่มี email","neutral")}
         </div>
         ${stacked([["LINE",realUserStats.loginChannel.line],["Email",realUserStats.loginChannel.email]],realUserStats.uniqueUsers)}
-      `,"<span class='tag info'>จาก DB จริง</span>"):card("Login Breakdown","LINE และ Email พร้อมยอดรวมคืนนี้",`
+      `,""):card("Login Breakdown","LINE และ Email พร้อมยอดรวมคืนนี้",`
         <div class="grid kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
           ${kpi("Login สำเร็จรวม",fmt(loginTotal),`รวมทั้งคืน ${fmt(d.unique)}`,"Current login success vs tonight total login activity","good")}
           ${kpi("LINE Login",fmt(d.lineNow),`รวมทั้งคืน ${fmt(d.lineLogin)}`,"Current vs tonight total","good")}
@@ -696,14 +699,14 @@ function realtimePage(d,p){
       ${kpi("อายุ 51–60",fmt(d.a51Now),`รวมทั้งคืน ${fmt(d.a51)}`,"Real-time vs tonight-to-date","good")}
       ${kpi("อายุ 61–70",fmt(d.a61Now),`รวมทั้งคืน ${fmt(d.a61)}`,"Real-time vs tonight-to-date","good")}
       */""}
-      ${realUserStats?kpi("อายุ 20–30 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a20),"จาก DB จริง","all-time","neutral"):kpi("อายุ 20–30",fmt(d.a20Now),`รวมทั้งคืน ${fmt(d.a20)}`,"Real-time vs tonight-to-date","good")}
-      ${realUserStats?kpi("อายุ 31–40 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a31),"จาก DB จริง","all-time","neutral"):kpi("อายุ 31–40",fmt(d.a31Now),`รวมทั้งคืน ${fmt(d.a31)}`,"Real-time vs tonight-to-date","good")}
-      ${realUserStats?kpi("อายุ 41–50 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a41),"จาก DB จริง","all-time","neutral"):kpi("อายุ 41–50",fmt(d.a41Now),`รวมทั้งคืน ${fmt(d.a41)}`,"Real-time vs tonight-to-date","good")}
-      ${realUserStats?kpi("อายุ 51–60 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a51),"จาก DB จริง","all-time","neutral"):kpi("อายุ 51–60",fmt(d.a51Now),`รวมทั้งคืน ${fmt(d.a51)}`,"Real-time vs tonight-to-date","good")}
-      ${realUserStats?kpi("อายุ 61–70 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a61),"จาก DB จริง","all-time","neutral"):kpi("อายุ 61–70",fmt(d.a61Now),`รวมทั้งคืน ${fmt(d.a61)}`,"Real-time vs tonight-to-date","good")}
+      ${realUserStats?kpi("อายุ 20–30 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a20),"","all-time","neutral"):kpi("อายุ 20–30",fmt(d.a20Now),`รวมทั้งคืน ${fmt(d.a20)}`,"Real-time vs tonight-to-date","good")}
+      ${realUserStats?kpi("อายุ 31–40 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a31),"","all-time","neutral"):kpi("อายุ 31–40",fmt(d.a31Now),`รวมทั้งคืน ${fmt(d.a31)}`,"Real-time vs tonight-to-date","good")}
+      ${realUserStats?kpi("อายุ 41–50 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a41),"","all-time","neutral"):kpi("อายุ 41–50",fmt(d.a41Now),`รวมทั้งคืน ${fmt(d.a41)}`,"Real-time vs tonight-to-date","good")}
+      ${realUserStats?kpi("อายุ 51–60 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a51),"","all-time","neutral"):kpi("อายุ 51–60",fmt(d.a51Now),`รวมทั้งคืน ${fmt(d.a51)}`,"Real-time vs tonight-to-date","good")}
+      ${realUserStats?kpi("อายุ 61–70 (ทั้งหมด)",fmt(realUserStats.ageBreakdown.a61),"","all-time","neutral"):kpi("อายุ 61–70",fmt(d.a61Now),`รวมทั้งคืน ${fmt(d.a61)}`,"Real-time vs tonight-to-date","good")}
     </div>
     <div class="pie-grid">
-      ${realUserStats?card("Age Pie","สัดส่วนผู้ใช้ทั้งหมด (all-time, จาก DB จริง) แยกตามช่วงอายุ",pieChart([["20–30",realUserStats.ageBreakdown.a20],["31–40",realUserStats.ageBreakdown.a31],["41–50",realUserStats.ageBreakdown.a41],["51–60",realUserStats.ageBreakdown.a51],["61–70",realUserStats.ageBreakdown.a61]],realUserStats.uniqueUsers,"ทั้งหมด\n"+fmt(realUserStats.uniqueUsers)),"<span class='tag info'>จาก DB จริง</span>"):card("Age Pie","สัดส่วนผู้ใช้ Active ตอนนี้แยกตามช่วงอายุ",pieChart(ageNow,d.activeNow,"Active\n"+fmt(d.activeNow)),"<span class='tag info'>Current State</span>")}
+      ${realUserStats?card("Age Pie","สัดส่วนผู้ใช้ทั้งหมด (all-time) แยกตามช่วงอายุ",pieChart([["20–30",realUserStats.ageBreakdown.a20],["31–40",realUserStats.ageBreakdown.a31],["41–50",realUserStats.ageBreakdown.a41],["51–60",realUserStats.ageBreakdown.a51],["61–70",realUserStats.ageBreakdown.a61]],realUserStats.uniqueUsers,"ทั้งหมด\n"+fmt(realUserStats.uniqueUsers)),""):card("Age Pie","สัดส่วนผู้ใช้ Active ตอนนี้แยกตามช่วงอายุ",pieChart(ageNow,d.activeNow,"Active\n"+fmt(d.activeNow)),"<span class='tag info'>Current State</span>")}
       ${card("Current Snapshot","สรุปข้อมูลสดที่ต้องเห็นในหน้าจอเดียว",`
         <div class="mini-grid">
           <div class="mini-stat"><b>Scope</b><strong>${scopeName()}</strong></div>
@@ -726,16 +729,16 @@ function realtimePage(d,p){
       ${kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.onlineTonight)),pct(change(d.unique/Math.max(1,d.onlineTonight),p.unique/Math.max(1,p.onlineTonight))),"Online venues tonight","good")}
       ${kpi("NSC Used คืนนี้",fmt(d.nscConsumed),pct(change(d.nscConsumed,p.nscConsumed)),"Tonight-to-date","good")}
       */""}
-      ${realUserStats?kpi("Unique Users สะสมคืนนี้",fmt(realUserStats.uniqueUsers),"จาก DB จริง","all-time (ไม่แยกเฉพาะคืนนี้)","neutral"):kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
-      ${realUserStats?kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(realUserStats.newUsers),"จาก DB จริง",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),"คืนเทียบเคียง","good")}
-      ${realUserStats?kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(realUserStats.existingUsers),"จาก DB จริง","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(d.existing),pct(change(d.existing,p.existing)),"คืนเทียบเคียง","good")}
-      ${kpi("ผู้ใช้เฉลี่ยต่อชั่วโมง","—","ไม่มีข้อมูลใน DB","ไม่มี timestamp แยกตามชั่วโมงที่ใช้ได้","neutral")}
-      ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"จาก DB จริง","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.onlineTonight)),pct(change(d.unique/Math.max(1,d.onlineTonight),p.unique/Math.max(1,p.onlineTonight))),"Online venues tonight","good")}
-      ${kpi("NSC Used คืนนี้","—","ไม่มีข้อมูลใน DB","ไม่มี table รายได้/NSC ในระบบ","neutral")}
+      ${realUserStats?kpi("Unique Users สะสมคืนนี้",fmt(realUserStats.uniqueUsers),"","all-time (ไม่แยกเฉพาะคืนนี้)","neutral"):kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
+      ${realUserStats?kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),"คืนเทียบเคียง","good")}
+      ${realUserStats?kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(realUserStats.existingUsers),"","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(d.existing),pct(change(d.existing,p.existing)),"คืนเทียบเคียง","good")}
+      ${kpi("ผู้ใช้เฉลี่ยต่อชั่วโมง","—","","ไม่มี timestamp แยกตามชั่วโมงที่ใช้ได้","neutral")}
+      ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.onlineTonight)),pct(change(d.unique/Math.max(1,d.onlineTonight),p.unique/Math.max(1,p.onlineTonight))),"Online venues tonight","good")}
+      ${kpi("NSC Used คืนนี้","—","","ไม่มี table รายได้/NSC ในระบบ","neutral")}
     </div>
   `)}
 
-  ${card("Timeline Real-time",realSeries?"จาก DB จริง — Match/NSC/Top-up ไม่มี table ใน DB จึงเป็น 0 เสมอ":"กราฟเดียว เปลี่ยน Metric และ Granularity ได้ โดยยังอยู่ในหน้าสถานะตอนนี้หน้าเดียว",`
+  ${card("Timeline Real-time",realSeries?"Match/NSC/Top-up ไม่มี table ใน DB จึงเป็น 0 เสมอ":"กราฟเดียว เปลี่ยน Metric และ Granularity ได้ โดยยังอยู่ในหน้าสถานะตอนนี้หน้าเดียว",`
     <div class="metric-toolbar">
       <div class="field"><label for="timeMetricSelect">Metric</label><select id="timeMetricSelect"><option value="users">ผู้ใช้ NearSip</option><option value="cheers">Cheers</option><option value="match">Match</option><option value="chat">Chat</option><option value="nsc">NSC Usage</option><option value="topup">Top-up</option></select></div>
       <div class="seg"><button data-gran="15m" class="${state.granularity==="15m"?"active":""}">15 นาที</button><button data-gran="30m" class="${state.granularity==="30m"?"active":""}">30 นาที</button><button data-gran="1h" class="${state.granularity==="1h"?"active":""}">1 ชั่วโมง</button></div>
@@ -743,7 +746,7 @@ function realtimePage(d,p){
     ${lineChart([{name:"คืนนี้",values:current},{name:"คืนเทียบเคียง",values:prev}],labels,"Real-time timeline","จำนวน")}
   `)}
 
-  ${card("Peak Time Summary",realSeries?"จาก DB จริง — \"—\" หมายถึงยังไม่มีข้อมูลพอจะหา peak ได้":"สรุปช่วงเวลาสูงสุดที่ควรเห็นในหน้าเดียวเช่นกัน",`
+  ${card("Peak Time Summary",realSeries?"หมายถึงยังไม่มีข้อมูลพอจะหา peak ได้":"สรุปช่วงเวลาสูงสุดที่ควรเห็นในหน้าเดียวเช่นกัน",`
     <div class="mini-grid">
       <div class="mini-stat"><b>Peak Users</b><strong>${peakMetric("users")}</strong></div>
       <div class="mini-stat"><b>Peak Cheers</b><strong>${peakMetric("cheers")}</strong></div>
@@ -752,6 +755,7 @@ function realtimePage(d,p){
       <div class="mini-stat"><b>Peak Top-up</b><strong>${peakMetric("topup")}</strong></div>
     </div>
   `)}
+  </div>
   `
 }
 function escapeHtml(value){return String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[char])}
