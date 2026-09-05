@@ -59,6 +59,7 @@ let userMenuPermissions=loadUserMenuPermissions(permissionUsers);
 // ดู loadRealStores() และจุดใช้งานใน populate()
 let realStores=[];
 let unmounted=false;
+let realtimePollId=null;
 async function loadRealStores(){
   try{
     const res=await fetch("/api/stores");
@@ -943,9 +944,13 @@ populate();render();
 loadRealStores();
 loadRealFeed();
 loadRealUserStats();
+// เดิม: loadRealUserStats() รันแค่ครั้งเดียวตอน mount + ตอนเปลี่ยน filter — "Active ตอนนี้" (activeSessions)
+// เลยค้างจนกว่าจะมี action อื่น ไม่ขยับเองแม้มีคนล็อกอินเข้ามาจริง เพิ่ม poll ทุก 15 วิให้ตัวเลขขยับเองแบบ real-time
+realtimePollId=setInterval(()=>{if(!unmounted)loadRealUserStats()},15000);
 
 return()=>{
   unmounted=true;
+  clearInterval(realtimePollId);
   window.removeEventListener("orientationchange",handleOrientationChange);
   window.removeEventListener("keydown",handleKeyDown);
   window.removeEventListener("resize",handleNavResize);
