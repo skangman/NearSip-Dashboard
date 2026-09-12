@@ -16,7 +16,7 @@ type MockAccount = {
 
 const MOCK_ACCOUNTS: readonly MockAccount[] = [
   {
-    password: "admin123",
+    password: "adminP!@ssw0rd",
     sessionId: "nsp_adm_7f5e8c2a91d64b30a4c821f63310e772",
     viewer: {
       id: "viewer-admin",

@@ -626,13 +626,16 @@ function timePage(d,p,realtime=false){
     ${kpi("Peak NSC Usage Time",peakMetric("nsc"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
     ${kpi("Peak Top-up Time",peakMetric("topup"),realSeries?"":"ช่วงเวลาสูงสุด","Business Night","neutral")}
   </div>
-  ${(()=>{
+  ${/* Timeline card — คอมเมนต์ไว้ก่อนตามที่ขอ (กราฟดูไม่มีความหมาย ตัวเลขกระโดด 0-1-2 แบบสุ่ม เส้น "ปีก่อน"
+  แบนที่ 0 ตลอด) ไม่ลบโค้ดเดิม เก็บไว้เผื่อกลับมาเปิดทีหลัง
+  (()=>{
     const toolbar=`<div class="metric-toolbar"><div class="field"><label for="timeMetricSelect">Metric</label><select id="timeMetricSelect"><option value="users">ผู้ใช้ NearSip</option><option value="cheers">Cheers</option><option value="match">Match</option><option value="chat">Chat</option><option value="nsc">NSC Usage</option><option value="topup">Top-up</option></select></div><div class="seg"><button data-gran="15m" class="${state.granularity==="15m"?"active":""}">15 นาที</button><button data-gran="30m" class="${state.granularity==="30m"?"active":""}">30 นาที</button><button data-gran="1h" class="${state.granularity==="1h"?"active":""}">1 ชั่วโมง</button></div></div>`;
     // nightFilterUnavailable: Business Night ที่เลือกไม่มี bucket รองรับที่ granularity ปัจจุบัน (ดู comment
     // ตอนประกาศตัวแปรด้านบน) โชว์ข้อความบอกตรงๆ แทนกราฟว่างเปล่า
     if(nightFilterUnavailable)return card("Timeline","Metric selector และ Time granularity",`${toolbar}<div class="banner-note" style="margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(255,120,120,.08);border:1px solid rgba(255,120,120,.25)">ไม่มีข้อมูลช่วง ${state.businessNight} ที่ granularity ${state.granularity} ปัจจุบัน — ลองเปลี่ยน granularity หรือเลือก "ทั้งหมด"</div>`);
     return card("Timeline","Metric selector และ Time granularity",`${toolbar}${lineChart([{name:realtime?"คืนนี้":periodLabel(),values:viewCurrent},{name:realtime?"คืนเทียบเคียง":compareLabel(),values:viewCompare}],viewLabels,metrics[state.timeMetric]+" ตามเวลา",state.timeMetric==="nsc"||state.timeMetric==="topup"?"NSC":"จำนวน")}`)
-  })()}
+  })()
+  */""}
   <div class="grid two-even" style="margin-top:14px">
     ${/* เดิม: heatmap สุ่มจาก hash() mock — คอมเมนต์ไว้เป็น fallback
     ${card("รูปแบบเวลาในแต่ละวันของสัปดาห์","Heatmap สรุป ไม่เพิ่มกราฟแยกทุกวัน",`<div class="heatmap-wrap">...`)}
