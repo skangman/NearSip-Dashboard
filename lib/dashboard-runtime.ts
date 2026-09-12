@@ -185,6 +185,10 @@ function ensureAccessibleView(){
 }
 function enforceViewerScope(){
   if(viewer.role==="admin")return;
+  // role "province" ที่ไม่มี province ผูกไว้ (เช่น admin01-03) ให้ scope แบบ admin เหมือนกัน — ไม่งั้นโค้ด
+  // ด้านล่างจะบังคับ state.level กลับเป็น "province" และ state.venue กลับเป็นร้าน mock ทุกครั้งที่ populate()
+  // ทำงาน (ล้าง country level + ร้านจริงที่เพิ่งแก้ให้เลือกได้ทิ้งไปเลย) ตามที่ขอ
+  if(viewer.role==="province"&&!viewer.province)return;
   state.province=authorizedProvince;
   if(viewer.role==="owner"){
     state.level="venue";state.venue=authorizedVenue;return
@@ -205,7 +209,11 @@ function allVenues(){return Object.entries(PROVINCES).flatMap(([province,venues]
 // entities() (ตอนเลือก "ทั้งหมด") ต้องใช้ list เดียวกัน
 function venueOptions(){
   const realVenueNames=realStores.map(s=>s.name||s.locationName||s.storeId).filter(Boolean);
-  return viewer.role==="owner"?[authorizedVenue]:viewer.role==="admin"&&realVenueNames.length?realVenueNames:PROVINCES[state.province];
+  // เดิม: เช็คแค่ viewer.role==="admin" ถึงจะได้รายชื่อร้านจริง — เปลี่ยนเป็น "ไม่ใช่ owner" แทน ตามที่ขอ
+  // เพื่อให้ role อื่นที่ต้องเห็นร้านจริงทั้งหมดเหมือน admin (เช่น admin01-03 role "province" ไม่มี province
+  // ผูกไว้ ดู [[nearsip-user-menu-permission-testing]]) เห็นรายชื่อร้านจริงด้วย ไม่ใช่ mock — owner ยังคง
+  // เห็นแค่ร้านตัวเองเหมือนเดิม ไม่กระทบ
+  return viewer.role==="owner"?[authorizedVenue]:realVenueNames.length?realVenueNames:PROVINCES[state.province];
 }
 function entities(){
   if(state.level==="country")return allVenues();
@@ -952,7 +960,10 @@ function populate(){
   // คอมเมนต์ไว้เป็น fallback — ตอนนี้ role admin ใช้ร้านจริงจาก realStores (loadRealStores) ถ้ามีข้อมูลแล้ว
   // ย้ายไป venueOptions() เพราะ entities() (ตอนเลือก "ทั้งหมด") ต้องใช้ list เดียวกัน
   const venues=venueOptions();
-  ls.querySelector('[value="country"]').disabled=viewer.role!=="admin";ls.querySelector('[value="country"]').hidden=viewer.role!=="admin";
+  // เดิม: เช็คแค่ viewer.role!=="admin" ถึงจะซ่อน "ประเทศไทย" — เปลี่ยนเป็นเงื่อนไขเดียวกับ initialScope
+  // (ยกเว้น admin กับ role "province" ที่ไม่มี province ผูกไว้ เช่น admin01-03) ให้เห็น/เลือกได้ตามที่ขอ
+  const canSeeCountryLevel=viewer.role==="admin"||(viewer.role==="province"&&!viewer.province);
+  ls.querySelector('[value="country"]').disabled=!canSeeCountryLevel;ls.querySelector('[value="country"]').hidden=!canSeeCountryLevel;
   // เดิม: ls.querySelector('[value="province"]').disabled=viewer.role==="owner";ls.querySelector('[value="province"]').hidden=viewer.role==="owner";
   // ซ่อน "จังหวัด" ออกจาก dropdown ระดับข้อมูลไว้ก่อนตามที่ขอ (ร้านพาร์ทเนอร์เอากลับมาแล้ว เพราะต้องใช้เลือกร้านจริง)
   ls.querySelector('[value="province"]').disabled=true;ls.querySelector('[value="province"]').hidden=true;
