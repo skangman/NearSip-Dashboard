@@ -149,7 +149,7 @@ export function LoginForm({ accounts }: LoginFormProps) {
             />
             <span>จดจำการเข้าสู่ระบบ</span>
           </label>
-          <small>จำ Username และ Password บนอุปกรณ์นี้</small>
+          {/* <small>จำ Username และ Password บนอุปกรณ์นี้</small> */}
         </div>
 
         {error ? (

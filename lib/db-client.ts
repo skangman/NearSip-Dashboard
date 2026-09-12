@@ -287,3 +287,38 @@ export async function getUserStats(days: number, storeId?: string | null): Promi
     client.release();
   }
 }
+
+/**
+ * เวอร์ชันเบาของ getUserStats() ด้านบน — ใช้เฉพาะกับ poll ความถี่สูงของการ์ด
+ * "ผู้ใช้ NearSip ที่ Active ตอนนี้" ใน Real-time page (ดู loadActiveNow() ใน
+ * lib/dashboard-runtime.ts) ไม่ได้ลบ/แก้ getUserStats() เดิม — แค่ดึง 2 query
+ * ย่อย (unique_users, active_sessions) ที่เคยเป็นส่วนหนึ่งของ getUserStats()
+ * ออกมาเรียกแยก กัน poll ถี่ ๆ ต้องแบกอีก ~12 query + ดึง raw rows หลักหมื่นแถว
+ * (cheers/chats/user timestamps, login_log) ที่การ์ดนี้ไม่ได้ใช้แสดงผลเลย
+ */
+export async function getActiveNowStats(
+  storeId?: string | null,
+): Promise<{ activeSessions: number; uniqueUsers: number }> {
+  const sid = storeId ?? null;
+  const client = await getPool().connect();
+  try {
+    // เหมือน sessionResult ใน getUserStats() บรรทัดด้านบน — session ไม่มี store_id เลยกรองร้านไม่ได้ ยอดรวมทั้งระบบเสมอ
+    const sessionResult = await client.query<{ active_sessions: string }>(
+      `SELECT COUNT(*) AS active_sessions FROM session WHERE expires > now()`,
+    );
+    const activeSessions = Number(sessionResult.rows[0]?.active_sessions ?? 0);
+
+    // เหมือน userResult ใน getUserStats() บรรทัดด้านบน (เอาเฉพาะส่วน unique_users ไม่เอา new_users ที่ต้องใช้ days)
+    const userResult = await client.query<{ unique_users: string }>(
+      `SELECT COUNT(*) AS unique_users
+       FROM "user"
+       WHERE ($1::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $1))`,
+      [sid],
+    );
+    const uniqueUsers = Number(userResult.rows[0]?.unique_users ?? 0);
+
+    return { activeSessions, uniqueUsers };
+  } finally {
+    client.release();
+  }
+}
