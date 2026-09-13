@@ -154,7 +154,12 @@ async function loadActiveNow(){
     if(!res.ok)return;
     const json=await res.json();
     if(unmounted)return;
-    if(realUserStats){realUserStats={...realUserStats,activeSessions:json.activeSessions,uniqueUsers:json.uniqueUsers};render();}
+    if(!realUserStats)return;
+    realUserStats={...realUserStats,activeSessions:json.activeSessions,uniqueUsers:json.uniqueUsers};
+    // แก้ทุกหน้า (ไม่ใช่แค่ Real-time) ตามที่ขอ — แต่แก้เฉพาะ element ที่ห่อด้วย class พวกนี้ตรงๆ แทนการ
+    // เรียก render() เต็ม กัน scroll/แถวที่ขยายอยู่ของหน้านั้นโดนรีเซ็ต (ดูจุดครอบ class ที่ template แต่ละหน้า)
+    document.querySelectorAll(".live-active-sessions").forEach(el=>{el.textContent=fmt(json.activeSessions)});
+    document.querySelectorAll(".live-unique-users").forEach(el=>{el.textContent=fmt(json.uniqueUsers)});
   }catch(err){
     console.warn("Failed to load active-now count",err);
   }
@@ -392,7 +397,12 @@ function timeSeries(total,points,seed){const r=rng(hash(scopeName()+seed+state.p
 function lineChart(series,labels,title="แนวโน้ม",unit="จำนวน"){
   const w=780,h=250,ml=52,mr=18,mt=18,mb=38,vals=series.flatMap(s=>s.values),max=Math.max(...vals,1)*1.12,step=(w-ml-mr)/Math.max(1,labels.length-1),x=i=>ml+i*step,y=v=>h-mb-v/max*(h-mt-mb);
   let grid="",yt="";for(let i=0;i<5;i++){const gy=mt+(h-mt-mb)/4*i,val=max*(1-i/4);grid+=`<line x1="${ml}" y1="${gy}" x2="${w-mr}" y2="${gy}" stroke="rgba(255,255,255,.08)"/>`;yt+=`<text x="${ml-8}" y="${gy+4}" text-anchor="end" fill="#aebbd5" font-size="10">${fmt(val)}</text>`}
-  const colors=["#2bd9f7","#8c6cff","#ef78bd","#ff9d55"],xl=labels.map((l,i)=>`<text x="${x(i)}" y="${h-12}" text-anchor="middle" fill="#aebbd5" font-size="10">${l}</text>`).join("");
+  // เดิม: xl=labels.map((l,i)=>`<text ...>${l}</text>`).join("") — วาด label ทุกจุดไม่มีเว้น พอ labels.length
+  // เยอะ (เช่น loginTrendByDay() จาก login_log จริงหลายเดือน) label ทับกันอ่านไม่ออก เพิ่ม labelStep คำนวณจาก
+  // ความกว้างที่มีจริงหาร ~45px/label แล้วโชว์เฉพาะ index ที่หารลงตัว (บวก index สุดท้ายเสมอกันวันล่าสุดหาย)
+  // เส้น/จุดข้อมูล (chart-dot ที่แตะดูค่าได้) ยังมีครบทุกวันเหมือนเดิม ตัดแค่ text ใต้แกน X เท่านั้น
+  const labelStep=Math.max(1,Math.ceil(labels.length/Math.floor((w-ml-mr)/45)));
+  const colors=["#2bd9f7","#8c6cff","#ef78bd","#ff9d55"],xl=labels.map((l,i)=>(i%labelStep===0||i===labels.length-1)?`<text x="${x(i)}" y="${h-12}" text-anchor="middle" fill="#aebbd5" font-size="10">${l}</text>`:"").join("");
   const lines=series.map((s,si)=>{const pts=s.values.map((v,i)=>`${x(i)},${y(v)}`).join(" ");const dots=s.values.map((v,i)=>`<circle class="chart-dot" data-series="${s.name}" data-label="${labels[i]}" data-value="${v}" cx="${x(i)}" cy="${y(v)}" r="${si===0?5:4}" fill="${colors[si]}" tabindex="0"><title>${s.name} · ${labels[i]} · ${fmt(v)} ${unit}</title></circle>`).join("");return`<polyline fill="none" stroke="${colors[si]}" stroke-width="${si===0?4:2.5}" ${si>0?'stroke-dasharray="6 5"':""} points="${pts}"/>${dots}`}).join("");
   return`<div class="chart-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${title}"><title>${title} · หน่วย ${unit}</title>${grid}${yt}${xl}${lines}</svg><div class="legend">${series.map((s,i)=>`<span><i style="background:${colors[i]}"></i>${s.name}</span>`).join("")}</div><div class="chart-value">แตะจุดข้อมูลเพื่อดูค่า</div></div>`
 }
@@ -438,7 +448,7 @@ function execPage(d,p){
     ${/* เดิม: ${kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")} — คอมเมนต์ไว้เป็น fallback */""}
     ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"","ร้านพาร์ทเนอร์ในระบบ","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")}
     ${/* เดิม: ${kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")} — คอมเมนต์ไว้เป็น fallback */""}
-    ${realUserStats?kpi("ผู้ใช้ NearSip ทั้งหมด",fmt(realUserStats.uniqueUsers),"","ทั้งหมด (all-time)","neutral"):kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ NearSip ทั้งหมด",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","ทั้งหมด (all-time)","neutral"):kpi("ผู้ใช้ NearSip แบบ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
     ${/* เดิม: ${kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")} — คอมเมนต์ไว้เป็น fallback */""}
     ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
     ${/* เดิม 3 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
@@ -479,7 +489,7 @@ function partnersPage(d,p){
     */""}
     ${realStores.length?kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(realStores.length),"","ไม่มี presence tracking จริง ใช้ยอด ACTIVE ทั้งหมดแทน","neutral"):kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
     ${realUserStats?kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(realUserStats.newStores),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
-    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",fmt(realUserStats.uniqueUsers),"","all-time (ไม่ใช่ Total Footfall)","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
+    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time (ไม่ใช่ Total Footfall)","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
     ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
     ${kpi("Revenue / Active Venue","—","","ไม่มี table รายได้ในระบบ","neutral")}
   </div>
@@ -520,7 +530,7 @@ function usersPage(d,p){
     ${kpi("กลับมาร้านเดิม",fmt(d.sameVenue),pct(change(d.sameVenue,p.sameVenue)),"Same-venue return","good")}
     ${kpi("กลับมา NearSip แต่เปลี่ยนร้าน",fmt(d.crossVenue),pct(change(d.crossVenue,p.crossVenue)),"Cross-venue return","good")}
     */""}
-    ${realUserStats?kpi("ผู้ใช้ Unique",fmt(realUserStats.uniqueUsers),"","all-time","neutral"):kpi("ผู้ใช้ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ Unique",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time","neutral"):kpi("ผู้ใช้ Unique",fmt(d.unique),pct(change(d.unique,p.unique)),periodLabel(),"good")}
     ${realUserStats?kpi("ผู้ใช้ใหม่",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),periodLabel(),"good")}
     ${realUserStats?kpi("ผู้ใช้เดิม",fmt(realUserStats.existingUsers),"","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิม",fmt(d.existing),pct(change(d.existing,p.existing)),periodLabel(),"good")}
     ${kpi("กลับมาร้านเดิม","—","","ไม่มี tracking การเข้าร้านแยกรายครั้ง","neutral")}
@@ -726,7 +736,9 @@ function realtimePage(d,p){
       ${combinedInteractionCard({cheersNow,cheersNight:d.cheersSent,matchNow,matchNight:d.matches,chatNow,chatNight:d.chats})}
       */""}
       ${realStores.length?focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้าน Active ทั้งหมด",current:fmt(realStores.length),tonight:fmt(realStores.length),footer:`<span>ร้าน ACTIVE: ${realStores.length} ร้าน</span>`}):focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้านที่ออนไลน์ตอนนี้",current:fmt(d.onlineNow),tonight:fmt(d.onlineTonight),note:"ร้านที่ยัง Online ใน current moment เทียบกับร้านที่เคย Online ตลอดคืนนี้",footer:`<span>ณ ตอนนี้: ${d.onlineNow} ร้าน</span><span>คืนนี้สะสม: ${d.onlineTonight} ร้าน</span>`})}
-      ${realUserStats?focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(realUserStats.activeSessions),tonight:fmt(realUserStats.uniqueUsers) ,footer:`<span>Active session ตอนนี้: ${fmt(realUserStats.activeSessions)}</span><span>ผู้ใช้ทั้งหมด: ${fmt(realUserStats.uniqueUsers)}</span>`}):focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(d.activeNow),tonight:fmt(d.unique),note:"ใช้เพื่อเฝ้าดูปริมาณผู้ใช้ที่กำลัง Active เทียบกับยอดผู้ใช้สะสมคืนนี้",footer:`<span>ผู้ใช้ใหม่ตอนนี้: ${fmt(d.newNow)}</span><span>ผู้ใช้เดิมตอนนี้: ${fmt(d.returningNow)}</span>`})}
+      ${/* current/footer ของการ์ดนี้ห่อด้วย <span class="live-active-sessions"> ไว้ — loadActiveNow() อัปเดตเลขตรงนี้ทาง DOM
+      โดยตรงทุก 5 วิ (ดูจุดเรียกด้านล่าง) แทนที่จะเรียก render() เต็มหน้า กันไม่ให้ state ที่ขยาย/scroll ของหน้าอื่นโดนรีเซ็ต */""}
+      ${realUserStats?focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:`<span class="live-active-sessions">${fmt(realUserStats.activeSessions)}</span>`,tonight:fmt(realUserStats.uniqueUsers) ,footer:`<span>Active session ตอนนี้: <span class="live-active-sessions">${fmt(realUserStats.activeSessions)}</span></span><span>ผู้ใช้ทั้งหมด: <span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span></span>`}):focusCard({span:"double",tone:"secondary",pill:"Critical KPI",title:"ผู้ใช้ NearSip ที่ Active ตอนนี้",current:fmt(d.activeNow),tonight:fmt(d.unique),note:"ใช้เพื่อเฝ้าดูปริมาณผู้ใช้ที่กำลัง Active เทียบกับยอดผู้ใช้สะสมคืนนี้",footer:`<span>ผู้ใช้ใหม่ตอนนี้: ${fmt(d.newNow)}</span><span>ผู้ใช้เดิมตอนนี้: ${fmt(d.returningNow)}</span>`})}
       ${focusCard({span:"double",tone:"tertiary",pill:"",title:"NSC Usage ตอนนี้",current:"—",tonight:"—"})}
       ${realUserStats?combinedInteractionCard({cheersNow:realUserStats.cheersTotal,cheersNight:realUserStats.cheersTotal,matchNow:"—",matchNight:"—",chatNow:realUserStats.chatsTotal,chatNight:realUserStats.chatsTotal}):combinedInteractionCard({cheersNow,cheersNight:d.cheersSent,matchNow,matchNight:d.matches,chatNow,chatNight:d.chats})}
     </div>
@@ -805,7 +817,7 @@ function realtimePage(d,p){
       ${kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.onlineTonight)),pct(change(d.unique/Math.max(1,d.onlineTonight),p.unique/Math.max(1,p.onlineTonight))),"Online venues tonight","good")}
       ${kpi("NSC Used คืนนี้",fmt(d.nscConsumed),pct(change(d.nscConsumed,p.nscConsumed)),"Tonight-to-date","good")}
       */""}
-      ${realUserStats?kpi("Unique Users สะสมคืนนี้",fmt(realUserStats.uniqueUsers),"","all-time (ไม่แยกเฉพาะคืนนี้)","neutral"):kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
+      ${realUserStats?kpi("Unique Users สะสมคืนนี้",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time (ไม่แยกเฉพาะคืนนี้)","neutral"):kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
       ${realUserStats?kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(realUserStats.newUsers),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),"คืนเทียบเคียง","good")}
       ${realUserStats?kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(realUserStats.existingUsers),"","uniqueUsers - newUsers","neutral"):kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(d.existing),pct(change(d.existing,p.existing)),"คืนเทียบเคียง","good")}
       ${kpi("ผู้ใช้เฉลี่ยต่อชั่วโมง","—","","ไม่มี timestamp แยกตามชั่วโมงที่ใช้ได้","neutral")}
@@ -998,7 +1010,9 @@ function syncModeControls(){
   document.getElementById("compareSelect").disabled=realtime
 }
 function showOverall(){const firstMenu=accessibleOverallMenus()[0];if(viewer.role!=="admin"&&!firstMenu)return;state.mode="overall";state.page=viewer.role==="admin"?"executive":firstMenu.id;syncModeControls();onModeChange("overall");render()}
-function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render()}
+// เดิม: ไม่ได้เรียก loadActiveNow() ตรงนี้ — พอ poll ยิงเฉพาะตอน mode==="realtime" แล้ว (ดู interval ด้านล่าง)
+// ถ้าเพิ่งกดเข้าหน้านี้ต้องรอ poll รอบถัดไปสูงสุด 15 วิ ตัวเลขถึงจะสด เลยยิงทันทีตอนสลับเข้ามาด้วย
+function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render();loadActiveNow()}
 const controller={showOverall,showRealtime};
 activeController=controller;
 document.getElementById("filterOpen").onclick=openDrawer;document.getElementById("filterClose").onclick=closeDrawer;document.getElementById("overlay").onclick=closeDrawer;
@@ -1032,6 +1046,10 @@ loadRealUserStats();
 // getActiveNowStats) แทน เลยลด interval เหลือ 5 วิได้โดยไม่เพิ่มภาระ DB เกิน poll เดิมที่ 15 วิ และ
 // เพิ่มเช็ค document.hidden กัน poll ตอนไม่ได้เปิดดู tab อยู่
 // realtimePollId=setInterval(()=>{if(!unmounted)loadRealUserStats()},15000);
+// เดิม: เคยจำกัดให้ยิงเฉพาะตอน state.mode==="realtime" และยืด interval เป็น 15 วิ — ตามที่ขอ อยาก
+// ให้ Overall mode ก็ขยับสดเหมือนกัน ไม่ใช่แค่หน้า Real-time เลยเอาเช็ค mode ออก ยิงทุกหน้า และกลับไป
+// 5 วิเหมือนเดิม (loadActiveNow() แก้ DOM เฉพาะจุดที่มี class "live-active-sessions"/"live-unique-users"
+// ตรงๆ ไม่เรียก render() เต็ม เลยไม่ทำให้หน้าอื่นรีเซ็ต scroll/แถวที่ขยายอยู่เหมือนเมื่อก่อน)
 realtimePollId=setInterval(()=>{if(!unmounted&&!document.hidden)loadActiveNow()},5000);
 
 return()=>{
