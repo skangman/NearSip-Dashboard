@@ -1,20 +1,12 @@
-import { cookies } from "next/headers";
-import {
-  getViewerScopeLabel,
-  type ManagedUser,
-  type PublicMockAccount,
-  type Viewer,
-} from "@/lib/auth-types";
+import type { Viewer } from "@/lib/domain/viewer";
 
-export const SESSION_COOKIE_NAME = "nearsip_mock_session";
-
-type MockAccount = {
+export type MockAccount = {
   password: string;
   sessionId: string;
   viewer: Viewer;
 };
 
-const MOCK_ACCOUNTS: readonly MockAccount[] = [
+export const MOCK_ACCOUNTS: readonly MockAccount[] = [
   {
     password: "adminP!@ssw0rd",
     sessionId: "nsp_adm_7f5e8c2a91d64b30a4c821f63310e772",
@@ -88,61 +80,3 @@ const MOCK_ACCOUNTS: readonly MockAccount[] = [
     },
   },
 ];
-
-export function getPublicMockAccounts(): PublicMockAccount[] {
-  return MOCK_ACCOUNTS.map(({ password, viewer }) => ({
-    username: viewer.username,
-    password,
-    displayName: viewer.displayName,
-    role: viewer.role,
-    scope: getViewerScopeLabel(viewer),
-  }));
-}
-
-export function getManagedMockUsers(): ManagedUser[] {
-  return MOCK_ACCOUNTS.map(({ password, viewer }) => ({
-    id: viewer.id,
-    username: viewer.username,
-    displayName: viewer.displayName,
-    role: viewer.role,
-    scope: getViewerScopeLabel(viewer),
-    // เพิ่มตามที่ขอ — ส่ง password ออกไปให้ admin สูงสุดเห็นในหน้า Users & Menu Access
-    password,
-  }));
-}
-
-export function authenticateMockAccount(username: string, password: string) {
-  const normalizedUsername = username.trim().toLowerCase();
-  const account = MOCK_ACCOUNTS.find(
-    (candidate) =>
-      candidate.viewer.username === normalizedUsername &&
-      candidate.password === password,
-  );
-
-  if (!account) return null;
-
-  return {
-    sessionId: account.sessionId,
-    viewer: account.viewer,
-  };
-}
-
-export async function getCurrentViewer(): Promise<Viewer | null> {
-  const sessionId = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
-  if (!sessionId) return null;
-
-  return (
-    MOCK_ACCOUNTS.find((account) => account.sessionId === sessionId)?.viewer ??
-    null
-  );
-}
-
-export function sessionCookieOptions(remember = false) {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    ...(remember ? { maxAge: 60 * 60 * 24 * 30 } : {}),
-  };
-}

@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
-import { SESSION_COOKIE_NAME } from "@/lib/mock-auth";
+import { endSession } from "@/lib/services/auth/session";
 
 export async function POST() {
-  (await cookies()).delete(SESSION_COOKIE_NAME);
+  await endSession();
   return Response.json({ success: true });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   mountDashboard,
   showOverallDashboard,
@@ -12,7 +13,7 @@ import {
   ROLE_LABELS,
   type ManagedUser,
   type Viewer,
-} from "@/lib/auth-types";
+} from "@/lib/domain/viewer";
 
 type DashboardProps = {
   viewer: Viewer;
@@ -88,14 +89,17 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
                 <strong>{viewer.displayName}</strong>
                 <small>{getViewerScopeLabel(viewer)}</small>
               </div>
-              <button
-                className="logout-button"
-                type="button"
-                onClick={handleLogout}
-                disabled={loggingOut}
-              >
-                {loggingOut ? "กำลังออก…" : "ออกจากระบบ"}
-              </button>
+              <div className="viewer-actions">
+                <ThemeToggle />
+                <button
+                  className="logout-button"
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                >
+                  {loggingOut ? "กำลังออก…" : "ออกจากระบบ"}
+                </button>
+              </div>
             </div>
             <div className="mobile-row">
               <div className="scope-summary">
@@ -186,18 +190,9 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
               {/* เดิม "ทั้งหมด" อยู่ล่างสุด — ย้ายขึ้นบนสุดตามที่ขอ */}
               <select id="nightSelect" defaultValue="ทั้งหมด">
                 <option>ทั้งหมด</option>
-                {/* เดิม: <option>18:00–05:00</option> — แทนที่ด้วยช่วงรายชั่วโมงจนถึงตี 5 ตามที่ขอ */}
-                <option>18:00–19:00</option>
-                <option>19:00–20:00</option>
-                <option>20:00–21:00</option>
-                <option>21:00–22:00</option>
-                <option>22:00–23:00</option>
-                <option>23:00–00:00</option>
-                <option>00:00–01:00</option>
-                <option>01:00–02:00</option>
-                <option>02:00–03:00</option>
-                <option>03:00–04:00</option>
-                <option>04:00–05:00</option>
+                {/* เดิม: option รายชั่วโมง 18:00–19:00 … 04:00–05:00 — เหลือแค่ 2 ช่วงตามที่ขอ */}
+                <option>18:00–00:00</option>
+                <option>00:00–06:00</option>
               </select>
             </div>
             <div className="custom-dates" id="customDates">

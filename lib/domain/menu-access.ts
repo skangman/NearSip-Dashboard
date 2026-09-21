@@ -1,4 +1,4 @@
-import type { Viewer } from "@/lib/auth-types";
+import type { Viewer } from "@/lib/domain/viewer";
 
 export const DASHBOARD_MENUS = [
   { id: "executive", label: "Executive Overview", mode: "overall" },

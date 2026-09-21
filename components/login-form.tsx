@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PublicMockAccount } from "@/lib/auth-types";
-import { ROLE_LABELS } from "@/lib/auth-types";
+import type { PublicMockAccount } from "@/lib/domain/viewer";
+import { ROLE_LABELS } from "@/lib/domain/viewer";
 
 type LoginFormProps = {
   accounts: PublicMockAccount[];

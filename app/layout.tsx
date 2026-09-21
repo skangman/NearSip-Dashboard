@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { THEME_INIT_SCRIPT } from "@/lib/domain/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,9 +20,14 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // suppressHydrationWarning: THEME_INIT_SCRIPT sets data-theme on <html> before React hydrates.
+  // It is a plain inline <script> in <head> (not next/script): that one runs synchronously while the
+  // HTML is parsed, so the first paint already has the right theme. next/script "beforeInteractive"
+  // would queue it through the Next runtime and allow a flash of the wrong theme.
   return (
-    <html lang="th">
+    <html lang="th" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

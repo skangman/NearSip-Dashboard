@@ -1,26 +1,19 @@
-import { getCurrentViewer } from "@/lib/mock-auth";
-import { getUserStats } from "@/lib/db-client";
+import { authenticatedRoute } from "@/lib/http/api-handler";
+import { numberParam, stringParam } from "@/lib/http/query";
+import { getUserStats } from "@/lib/services/user-stats-service";
 
 /**
- * GET /api/user-stats?days=30&storeId=xxx → COUNT(*) จริงจากตาราง user (DB ตรง, read-only)
- * มีเพราะ backend ไม่มี endpoint list/aggregate user เลย (ดู lib/db-client.ts)
- * storeId: ไม่ส่ง = รวมทุกร้าน, ส่ง = กรองเฉพาะร้านนั้น (ดู getUserStats() ว่าอะไรกรองได้/ไม่ได้)
+ * GET /api/user-stats?days=30&storeId=xxx&from=YYYY-MM-DD&to=YYYY-MM-DD → สถิติผู้ใช้จริงจาก DB ตรง (read-only)
+ * storeId: ไม่ส่ง = รวมทุกร้าน, ส่ง = กรองเฉพาะร้านนั้น
+ * from/to: คืนธุรกิจ (ตัด 06:00 น. เวลาไทย) ที่ใช้แยกผู้ใช้ใหม่/เดิม — ไม่ส่ง from = ไม่แยก (null)
  */
-export async function GET(request: Request) {
-  const viewer = await getCurrentViewer();
-  if (!viewer) {
-    return Response.json({ message: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const days = Number(searchParams.get("days")) || 30;
-  const storeId = searchParams.get("storeId") || undefined;
-
-  try {
-    const stats = await getUserStats(days, storeId);
-    return Response.json(stats);
-  } catch (err) {
-    console.error("user-stats DB query failed", err);
-    return Response.json({ message: "Failed to reach database" }, { status: 502 });
-  }
-}
+export const GET = authenticatedRoute(
+  ({ searchParams }) =>
+    getUserStats({
+      days: numberParam(searchParams, "days"),
+      storeId: stringParam(searchParams, "storeId"),
+      from: stringParam(searchParams, "from"),
+      to: stringParam(searchParams, "to"),
+    }),
+  { failureMessage: "Failed to reach database", logLabel: "user-stats" },
+);

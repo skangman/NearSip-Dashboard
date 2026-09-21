@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(:)",
+      "Bash(awk 'NR>=424 && NR<=890 && /^function /{print NR\": \"substr\\($0,1,60\\)}' lib/dashboard-runtime.ts)",
+      "Bash(grep -noE '#[0-9a-fA-F]{3,8}\\\\b|rgba?\\\\\\([^\\)]*\\\\\\)' lib/dashboard-runtime.ts)",
+      "Bash(sort -t: -k1,1n)",
+      "Bash(awk -F: '{a[$1]=a[$1]\" \"$2\":\"$3} END{for\\(k in a\\)print k\": \"a[k]}')",
+      "Bash(grep -noE '\\(stroke|fill|stop-color|color|background\\)[:=]\"?[^ ;\">]{2,40}' lib/dashboard-runtime.ts)",
+      "Bash(node shots.mjs)",
+      "Bash(node measure.mjs 390 time)",
+      "Bash(node shots.mjs mobile)",
+      "Bash(sort -t: -k2)",
+      "Bash(uniq -c -f0)",
+      "Bash(node theme-test.mjs)",
+      "Bash(awk 'NR>=562 && NR<=606' lib/dashboard-runtime.ts)",
+      "Bash(VP=mobile THEME=dark node engagement-test.mjs)"
+    ]
+  }
+}

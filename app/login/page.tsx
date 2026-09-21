@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
-import { getCurrentViewer, getPublicMockAccounts } from "@/lib/mock-auth";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { listPublicAccounts } from "@/lib/services/auth/auth-service";
+import { getCurrentViewer } from "@/lib/services/auth/session";
 
 export const metadata: Metadata = {
   title: "เข้าสู่ระบบ | NearSip Dashboard",
@@ -12,6 +14,7 @@ export default async function LoginPage() {
 
   return (
     <main className="login-page">
+      <ThemeToggle className="login-theme-toggle" />
       <section className="login-intro" aria-labelledby="login-title">
         <div className="login-intro-aura" aria-hidden="true" />
         <div className="login-brand">
@@ -39,7 +42,7 @@ export default async function LoginPage() {
         </div>
       </section>
 
-      <LoginForm accounts={getPublicMockAccounts()} />
+      <LoginForm accounts={listPublicAccounts()} />
     </main>
   );
 }

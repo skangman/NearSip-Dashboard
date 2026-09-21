@@ -1,8 +1,9 @@
 // Server-only client for the NearSip .NET backend.
 //
 // Never import this from a Client Component / "use client" file — it reads
-// BACKEND_INTERNAL_API_KEY, which must stay on the server. Route Handlers under
-// app/api/** proxy to these functions instead of exposing the key to the browser.
+// BACKEND_INTERNAL_API_KEY, which must stay on the server. Only services under
+// lib/services call these functions (Route Handlers reach them through a
+// service), so the key is never exposed to the browser.
 //
 // The backend itself (../backend, .NET) is read-only from here: this file only
 // calls it over HTTP with the shared API key, it never touches backend source.
@@ -59,6 +60,44 @@ async function backendFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Paged list endpoints ({ status, message, total?, data[] } envelope)
+// ---------------------------------------------------------------------------
+
+export type PageOptions = { page?: number; limit?: number };
+
+type PagedEnvelope<T> = {
+  status: boolean;
+  message: string | null;
+  total?: number;
+  data: T[] | null;
+};
+
+export type PagedResult<T> = { items: T[]; total: number };
+
+function pageQueryString({ page, limit }: PageOptions): string {
+  const params = new URLSearchParams();
+  if (page) params.set("page", String(page));
+  if (limit) params.set("limit", String(limit));
+  return params.size ? `?${params.toString()}` : "";
+}
+
+/**
+ * GET รายการแบบแบ่งหน้าจาก backend — backend ตอบ 400 (BadRequest) พร้อม { status:false }
+ * เมื่อไม่มีข้อมูล จึงถือว่าเป็นผลว่าง ไม่ใช่ error
+ */
+async function fetchPagedList<T>(path: string, opts: PageOptions): Promise<PagedResult<T>> {
+  try {
+    const envelope = await backendFetch<PagedEnvelope<T>>(`${path}${pageQueryString(opts)}`);
+    return { items: envelope.data ?? [], total: envelope.total ?? envelope.data?.length ?? 0 };
+  } catch (err) {
+    if (err instanceof BackendRequestError && err.status === 400) {
+      return { items: [], total: 0 };
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/set-location — รายชื่อร้าน (backend.Controllers.SetLocationController)
 // ---------------------------------------------------------------------------
 
@@ -108,45 +147,21 @@ export type BackendCheerItem = {
   userAccountType: string | null;
 };
 
-type CheersEnvelope = {
-  status: boolean;
-  message: string | null;
-  total?: number;
-  data: BackendCheerItem[] | null;
-};
-
-export type BackendCheersResult = {
-  items: BackendCheerItem[];
-  total: number;
-};
+export type BackendCheersResult = PagedResult<BackendCheerItem>;
 
 /**
  * GET {BACKEND_BASE}/api/cheers/{storeId}/{responderUserId} — cheers ที่ pending
  * อยู่ของร้านนั้น (รอ responderUserId ตอบรับ)
  */
-export async function fetchStoreCheers(
+export function fetchStoreCheers(
   storeId: string,
   responderUserId: string,
-  opts: { page?: number; limit?: number } = {},
+  opts: PageOptions = {},
 ): Promise<BackendCheersResult> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.limit) params.set("limit", String(opts.limit));
-  const qs = params.size ? `?${params.toString()}` : "";
-
-  try {
-    const envelope = await backendFetch<CheersEnvelope>(
-      `/api/cheers/${encodeURIComponent(storeId)}/${encodeURIComponent(responderUserId)}${qs}`,
-    );
-    return { items: envelope.data ?? [], total: envelope.total ?? envelope.data?.length ?? 0 };
-  } catch (err) {
-    // Backend returns 400 (BadRequest) with { status:false } when there's no
-    // pending cheers for this pair — treat that as an empty result, not an error.
-    if (err instanceof BackendRequestError && err.status === 400) {
-      return { items: [], total: 0 };
-    }
-    throw err;
-  }
+  return fetchPagedList<BackendCheerItem>(
+    `/api/cheers/${encodeURIComponent(storeId)}/${encodeURIComponent(responderUserId)}`,
+    opts,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -168,40 +183,16 @@ export type BackendFeedItem = {
   feedDate: string;
 };
 
-type FeedEnvelope = {
-  status: boolean;
-  message: string | null;
-  total?: number;
-  data: BackendFeedItem[] | null;
-};
-
-export type BackendFeedResult = {
-  items: BackendFeedItem[];
-  total: number;
-};
+export type BackendFeedResult = PagedResult<BackendFeedItem>;
 
 /**
  * GET {BACKEND_BASE}/api/feed (หรือ /api/feed/{storeId} ถ้าระบุ storeId) — รายการ feed จริง
  * (ไม่ระบุ storeId = feed ทุกร้าน)
  */
-export async function fetchFeed(
+export function fetchFeed(
   storeId?: string,
-  opts: { page?: number; limit?: number } = {},
+  opts: PageOptions = {},
 ): Promise<BackendFeedResult> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.limit) params.set("limit", String(opts.limit));
-  const qs = params.size ? `?${params.toString()}` : "";
-  const path = storeId ? `/api/feed/${encodeURIComponent(storeId)}${qs}` : `/api/feed${qs}`;
-
-  try {
-    const envelope = await backendFetch<FeedEnvelope>(path);
-    return { items: envelope.data ?? [], total: envelope.total ?? envelope.data?.length ?? 0 };
-  } catch (err) {
-    // Backend returns 400 (BadRequest) with { status:false } when there's no feed data.
-    if (err instanceof BackendRequestError && err.status === 400) {
-      return { items: [], total: 0 };
-    }
-    throw err;
-  }
+  const path = storeId ? `/api/feed/${encodeURIComponent(storeId)}` : "/api/feed";
+  return fetchPagedList<BackendFeedItem>(path, opts);
 }
