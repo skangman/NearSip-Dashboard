@@ -72,3 +72,14 @@ export type ActiveNowStats = {
   activeSessions: number;
   uniqueUsers: number;
 };
+
+/** ผู้ใช้ที่มี session ยังไม่หมดอายุ — ใช้กับการ์ดหน้า "ผู้ใช้ตอนนี้" ในโหมด Real-time */
+export type ActiveUser = {
+  id: string;
+  name: string | null;
+  image: string | null;
+  age: number | null;
+  gender: string | null;
+  /** store_id ของการ login ครั้งล่าสุด (login_log) — null = ไม่เคย login ที่ร้านไหน · ชื่อร้าน map ฝั่ง client จาก /api/stores */
+  lastStoreId: string | null;
+};

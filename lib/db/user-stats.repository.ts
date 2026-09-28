@@ -5,7 +5,7 @@
 // กรองทางอ้อมผ่าน "user ที่เคย login ที่ร้านนี้" (ดู userInStoreFilter ใน ./sql)
 // `activeSessions` (ตาราง session) กรองตามร้านไม่ได้ เป็นยอดรวมทั้งระบบเสมอ
 
-import type { ActiveNowStats, UserStats } from "@/lib/domain/user-stats";
+import type { ActiveNowStats, ActiveUser, UserStats } from "@/lib/domain/user-stats";
 import { countCheers, countCheersByStatus, countCheersParticipants, countEngagedUsers, listCheerTimes } from "./cheers.repository";
 import { countChats, countMessages, listChatTimes } from "./chat.repository";
 import { listLoginLogs } from "./login-log.repository";
@@ -18,6 +18,7 @@ import {
   countByLoginChannel,
   countUniqueUsers,
   countUsers,
+  listActiveSessionUsers,
   listUserCreatedTimes,
 } from "./user.repository";
 
@@ -83,4 +84,9 @@ export async function fetchActiveNowStats(storeId: string | null): Promise<Activ
     const uniqueUsers = await countUniqueUsers(db, storeId);
     return { activeSessions, uniqueUsers };
   });
+}
+
+// เดิม: fetchActiveUsers(storeId) — เพิ่ม search
+export async function fetchActiveUsers(storeId: string | null, search: string | null = null): Promise<ActiveUser[]> {
+  return withClient((db) => listActiveSessionUsers(db, storeId, search));
 }

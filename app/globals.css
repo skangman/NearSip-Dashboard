@@ -898,3 +898,40 @@ tbody tr:hover td{background:var(--wash-cyan)}
 @media(prefers-reduced-motion:reduce){
   *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* หน้า "ผู้ใช้ตอนนี้" (Real-time) — การ์ดโปรไฟล์ผู้ใช้ที่ Active พื้นม่วงเข้มเหมือนกันทั้ง 2 ธีม */
+/* เดิม: แสดงเป็น grid หลายแถว — เปลี่ยนเป็นแถวแนวนอนปัดซ้าย/ขวาได้ (scroll-snap) ตามที่ขอ
+.active-user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.active-user-grid>.empty-state{grid-column:1/-1}
+*/
+/* เดิม (รอบก่อน): แถวแนวนอนเห็นหลายใบพร้อมกัน — เปลี่ยนเป็นโชว์ทีละ 1 ใบกึ่งกลาง ปัดทีละใบ ตามที่ขอ
+.active-user-grid{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.active-user-grid>.active-user-card{flex:0 0 220px;scroll-snap-align:start}
+.active-user-grid>.empty-state{flex:1 1 100%}
+*/
+.active-user-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:320px;margin:0 auto}
+.active-user-grid::-webkit-scrollbar{display:none}
+/* เดิม: .active-user-grid>.active-user-card{...;justify-content:center} — ย้ายชื่อ/เพศ·อายุลงล่างสุดของการ์ด (รูปกลางพื้นที่ด้านบน ดู .active-user-grid .active-user-photo) */
+.active-user-grid>.active-user-card{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;min-height:420px;padding-bottom:28px;cursor:grab;user-select:none;-webkit-user-select:none}
+/* เดิม: .active-user-grid .active-user-photo{margin:auto 0} — รูปลอยกลางพื้นที่ว่าง ยกขึ้นชิดด้านบนการ์ดตามที่ขอ */
+.active-user-grid .active-user-photo{margin:16px 0 auto}
+.active-user-photo img{-webkit-user-drag:none}
+.active-user-grid>.empty-state{flex:1 1 100%}
+.active-user-dots{display:flex;justify-content:center;gap:8px;margin-top:14px}
+.active-user-dots span{width:8px;height:8px;border-radius:50%;background:var(--color-border-strong);transition:background .2s,transform .2s}
+.active-user-dots span.active{background:#A855F7;transform:scale(1.3)}
+/* เดิม: .active-user-card{...;background:#1E0F2E;color:#FFFFFF;text-align:center;min-width:0} ไม่มีขอบ/เงา — โหมดมืดการ์ดกลืนกับพื้นหลัง */
+.active-user-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:24px 16px;border-radius:var(--radius-card);background:#1E0F2E;color:#FFFFFF;text-align:center;min-width:0;border:1px solid rgba(168,85,247,.35);box-shadow:0 0 24px rgba(168,85,247,.18)}
+/* เดิม: .active-user-photo{width:120px;height:120px;...} — ขยายรูปเป็น 160px ให้การ์ดดูเป็นการ์ดโปรไฟล์ตามที่ขอ */
+.active-user-photo{width:160px;height:160px;border-radius:50%;overflow:hidden;border:3px solid #A855F7;box-shadow:0 0 18px 4px rgba(168,85,247,.55);display:grid;place-items:center;background:#2D1745;margin-bottom:10px}
+.active-user-photo img{width:100%;height:100%;object-fit:cover}
+.active-user-photo span{font-size:42px;font-weight:700;color:#E9D5FF}
+/* เดิม: .active-user-card h4{margin:0;font-size:18px;...} — ชื่อตัวใหญ่ขึ้น */
+/* เดิม: .active-user-card h4{margin:0;font-size:24px;...} ไม่มี color — โดนกฎ h1,h2,h3,h4{color:var(--color-primary)} ทับเป็นสีกรมท่า */
+.active-user-card h4{margin:0;font-size:24px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#FFFFFF}
+.active-user-card p{margin:0;font-size:13px;color:#C4B5D9}
+.active-user-card .active-user-store{color:#E9D5FF;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.active-user-search{max-width:320px;margin:0 auto 14px}
+/* เดิม: @media (max-width:480px){.active-user-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.active-user-photo{width:88px;height:88px}} */
+/* เดิม (รอบก่อน): @media (max-width:480px){.active-user-grid{gap:10px}.active-user-grid>.active-user-card{flex-basis:70%}.active-user-photo{width:88px;height:88px}}
+   ไม่ต้องใช้แล้ว — การ์ดกว้างเต็มกรอบ (สูงสุด 320px) อยู่แล้วทุกขนาดจอ */

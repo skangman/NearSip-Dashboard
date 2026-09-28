@@ -194,6 +194,100 @@ async function loadActiveNow(){
     console.warn("Failed to load active-now count",err);
   }
 }
+// รายชื่อผู้ใช้ที่มี session ยังไม่หมดอายุ — หน้า "ผู้ใช้ตอนนี้" (null = กำลังโหลด)
+// แก้เฉพาะ #activeUsersGrid ทาง DOM ตรงๆ เหมือน loadActiveNow() กัน render() เต็มหน้ารีเซ็ต scroll ทุก 5 วิ
+let activeUsers=null,activeUsersFailed=false;
+async function loadActiveUsers(){
+  try{
+    const storeId=selectedStoreId();
+    // เดิม: const qs=storeId?`?storeId=${encodeURIComponent(storeId)}`:""; — เพิ่ม q (คำค้น)
+    const params=new URLSearchParams();
+    if(storeId)params.set("storeId",storeId);
+    if(state.activeUserSearch.trim())params.set("q",state.activeUserSearch.trim());
+    const qs=params.toString()?`?${params}`:"";
+    const res=await fetch(`/api/active-users${qs}`);
+    if(unmounted)return;
+    if(!res.ok){activeUsersFailed=true}
+    else{const json=await res.json();if(unmounted)return;activeUsers=json.users||[];activeUsersFailed=false}
+  }catch(err){
+    console.warn("Failed to load active users",err);
+    activeUsersFailed=true;
+  }
+  // เดิม: const grid=...;if(grid)grid.innerHTML=activeUsersGridHtml(); — วาดใหม่ทุก 5 วิ ทำให้การ์ดที่ปัดไปเด้งกลับใบแรก
+  // ตอนนี้วาดใหม่เฉพาะเมื่อรายชื่อเปลี่ยนจริง (เทียบกับผลรอบก่อน)
+  const key=JSON.stringify([activeUsers,activeUsersFailed]);
+  if(key===activeUsersKey)return;
+  activeUsersKey=key;
+  const grid=document.getElementById("activeUsersGrid");
+  // เดิม: if(grid){grid.innerHTML=activeUsersGridHtml();grid.scrollLeft=0} — ตอนนี้ใบแรกสุดเป็นสำเนาใบสุดท้าย (loop) จึงเริ่มที่ใบ 1 จริงแทน
+  if(grid){grid.innerHTML=activeUsersGridHtml();initActiveUsersCarousel()}
+  const dots=document.getElementById("activeUsersDots");
+  if(dots)dots.innerHTML=activeUserDotsHtml(0);
+  const count=document.getElementById("activeUsersCount");
+  if(count)count.textContent=activeUsers?`${fmt(activeUsers.length)} คน`:"";
+}
+// เปลี่ยนตัวกรอง (ระดับ/จังหวัด/ร้าน) ตอนเปิดหน้า "ผู้ใช้ตอนนี้" — เดิมไม่ได้โหลดใหม่ ต้องรอ poll 5 วิ การ์ดร้านเก่าเลยค้าง
+// ล้างเป็น "กำลังโหลด…" ทันที (รีเซ็ต key ด้วย ไม่งั้นถ้าผลเหมือนเดิมจะไม่วาดทับ) แล้วยิงหลัง populate() ปรับ state.venue เสร็จ
+function reloadActiveUsersIfOpen(){
+  if(state.mode!=="realtime"||state.rtPage!=="users")return;
+  activeUsers=null;activeUsersFailed=false;activeUsersKey="";
+  setTimeout(loadActiveUsers,0);
+}
+// พิมพ์ค้นหาแล้วรอ 300ms ค่อยยิง — อัปเดตแค่ #activeUsersGrid ช่อง input ไม่โดน render ใหม่ จึงไม่หลุดโฟกัส
+let activeUserSearchTimer=null;
+function handleActiveUserSearchInput(e){
+  if(e.target?.id!=="activeUserSearch")return;
+  state.activeUserSearch=e.target.value;
+  clearTimeout(activeUserSearchTimer);
+  activeUserSearchTimer=setTimeout(loadActiveUsers,300);
+}
+// จุดบอกตำแหน่งการ์ด ● ○ ○ ○ ○ ใต้ carousel หน้า "ผู้ใช้ตอนนี้"
+let activeUsersKey="";
+function activeUserDotsHtml(index){return(activeUsers||[]).map((_,i)=>`<span class="${i===index?"active":""}"></span>`).join("")}
+// เดิม (ก่อนทำ loop):
+// function handleActiveUsersScroll(e){
+//   const grid=e.target;
+//   if(grid?.id!=="activeUsersGrid")return;
+//   const index=Math.round(grid.scrollLeft/Math.max(1,grid.clientWidth));
+//   document.querySelectorAll("#activeUsersDots span").forEach((dot,i)=>dot.classList.toggle("active",i===index));
+// }
+// ปัดวนเป็นวงกลม: การ์ดเรียงเป็น [สำเนาใบสุดท้าย] 1..n [สำเนาใบแรก] (ดู activeUsersGridHtml) — เลื่อนหยุดแล้ว 120ms
+// ถ้าจอดที่ตัวสำเนา กระโดดไปใบจริงที่หน้าตาเหมือนกันทันที (ไม่มี animation) ใช้ debounce แทน scrollend เพราะ Safari ยังไม่รองรับ
+let activeUsersSnapTimer=null;
+function activeUsersLooping(){return(activeUsers?.length||0)>1}
+function initActiveUsersCarousel(){
+  const grid=document.getElementById("activeUsersGrid");
+  if(grid&&activeUsersLooping())grid.scrollLeft=grid.clientWidth;
+}
+function handleActiveUsersScroll(e){
+  const grid=e.target;
+  if(grid?.id!=="activeUsersGrid")return;
+  const n=activeUsers?.length||0,w=Math.max(1,grid.clientWidth);
+  const raw=Math.round(grid.scrollLeft/w);
+  const index=activeUsersLooping()?((raw-1)%n+n)%n:raw;
+  document.querySelectorAll("#activeUsersDots span").forEach((dot,i)=>dot.classList.toggle("active",i===index));
+  if(!activeUsersLooping())return;
+  clearTimeout(activeUsersSnapTimer);
+  activeUsersSnapTimer=setTimeout(()=>{
+    const at=Math.round(grid.scrollLeft/w);
+    if(at===0)grid.scrollLeft=n*w;
+    else if(at===n+1)grid.scrollLeft=w;
+  },120);
+}
+// ลากด้วยเมาส์บนคอม (overflow scroll ของ browser รองรับแค่นิ้ว/trackpad) — ลากเกิน 40px = เลื่อน 1 ใบ
+// มือถือ (touch/pen) ไม่ผ่านตรงนี้ ใช้การปัด native + scroll-snap เหมือนเดิม
+let activeUsersDragX=null;
+function handleActiveUsersPointerDown(e){
+  if(e.pointerType!=="mouse"||e.button!==0||!e.target.closest?.("#activeUsersGrid"))return;
+  activeUsersDragX=e.clientX;
+}
+function handleActiveUsersPointerUp(e){
+  if(activeUsersDragX===null)return;
+  const dx=e.clientX-activeUsersDragX;activeUsersDragX=null;
+  const grid=document.getElementById("activeUsersGrid");
+  if(!grid||Math.abs(dx)<40)return;
+  grid.scrollBy({left:dx<0?grid.clientWidth:-grid.clientWidth,behavior:"smooth"});
+}
 // Engagement & Retention — ข้อมูลจริงล้วนจาก /api/engagement (ไม่มี mock ปน) ตัวเลขทุกตัวตามร้าน + ช่วงเวลาที่เลือก
 // เก็บผลล่าสุดไว้ใน engagementReport (null = กำลังโหลด) engagementFailed = โหลดไม่สำเร็จ (ไม่ fallback เป็นเลขปลอม)
 let engagementReport=null,engagementFailed=false,engagementRequestId=0;
@@ -245,7 +339,11 @@ const state={
   execTrend:"users",trendMetric:"users",trendGran:"auto",topMetric:"users",provinceMetric:"users",segmentMetric:"frequent",
   engageTab:"retention",timeMetric:"users",granularity:"30m",nscTab:"nsc",
   revenueTrend:"daily",revenueRank:"feature",merchantSort:"lastAccess",
-  permissionSearch:"",permissionUserId:""
+  permissionSearch:"",permissionUserId:"",
+  // เมนูย่อยของโหมด Real-time: "status" = สถานะตอนนี้ (realtimePage) · "users" = ผู้ใช้ตอนนี้ (activeUsersPage)
+  rtPage:"status",
+  // คำค้นในหน้า "ผู้ใช้ตอนนี้" (ชื่อ/email) — ส่งเป็น ?q= ไป /api/active-users
+  activeUserSearch:""
 };
 function canAccessMenu(menuId){return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)}
 function accessibleOverallMenus(){return OVERALL_DASHBOARD_MENUS.filter(menu=>canAccessMenu(menu.id))}
@@ -350,16 +448,16 @@ function kpi(label,value,deltaText,meta,status="good"){return`<article class="kp
 // newUsersTonight/existingUsersTonight ที่ server ส่งมาอยู่แล้ว (ตัวเลขเดียวกับการ์ดโหมด Real-time) — ดู lib/db/user.repository.ts
 // เดิม: null → แสดง "—" พร้อม NO_SPLIT_NOTE (คอมเมนต์ไว้เป็น fallback ไม่ลบ)
 // const NO_SPLIT_NOTE="เลือกช่วงเวลาอื่นที่ไม่ใช่ “ทั้งหมด” เพื่อแยกผู้ใช้ใหม่/เดิม";
-const ALLTIME_VS_TONIGHT_NOTE="ทั้งหมด → เทียบกับคืนนี้ (ตัดรอบ 06:00 น.)";
+const ALLTIME_VS_TONIGHT_NOTE="";
 function realNewUsersKpi(label){
   const n=realUserStats.newUsers;
   // เดิม: return n===null?kpi(label,"—","",NO_SPLIT_NOTE,"neutral"):kpi(label,fmt(n),"",periodLabel()+" · สมัครใหม่ (ตัดรอบ 06:00 น.)","neutral")
-  return n===null?kpi(label,fmt(realUserStats.newUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+" · สมัครใหม่","neutral"):kpi(label,fmt(n),"",periodLabel()+" · สมัครใหม่ (ตัดรอบ 06:00 น.)","neutral")
+  return n===null?kpi(label,fmt(realUserStats.newUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+"สมัครใหม่","neutral"):kpi(label,fmt(n),"",periodLabel()+" · สมัครใหม่ (ตัดรอบ 06:00 น.)","neutral")
 }
 function realExistingUsersKpi(label){
   const n=realUserStats.existingUsers;
   // เดิม: return n===null?kpi(label,"—","",NO_SPLIT_NOTE,"neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
-  return n===null?kpi(label,fmt(realUserStats.existingUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+" · สมัครก่อนคืนนี้","neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
+  return n===null?kpi(label,fmt(realUserStats.existingUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+"สมัครก่อนคืนนี้","neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
 }
 function card(title,subtitle,body,tag=""){return`<section class="card"><div class="card-head"><div><h3>${title}</h3><p>${subtitle}</p></div>${tag}</div>${body}</section>`}
 function hero(title,desc,note=""){return`<div class="hero"><div><h2>${title}</h2><p>${desc}</p></div>${note?`<div class="hero-note">${note}</div>`:""}</div>`}
@@ -523,9 +621,9 @@ function execPage(d,p){
   const trendSeg=(attr,cur,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button type="button" ${attr}="${v}" class="${cur===v?"active":""}">${l}</button>`).join("")}</div>`;
   const trendBlock=realTrend?(()=>{
     const unit=TREND_UNIT[state.trendMetric],per=TREND_GRAN_LABEL[realTrend.granularity];
-    const toolbar=`<div class="metric-toolbar" style="margin-top:12px">${trendSeg("data-trendmetric",state.trendMetric,[["users","ผู้ใช้ (คนไม่ซ้ำ)"],["logins","จำนวน Login"]])}${trendSeg("data-trendgran",state.trendGran,[["auto","อัตโนมัติ"],["night","รายคืน"],["week","รายสัปดาห์"],["month","รายเดือน"]])}</div>`;
+    const toolbar=`<div class="metric-toolbar" style="margin-top:12px">${trendSeg("data-trendmetric",state.trendMetric,[["users","ผู้ใช้"],["logins","จำนวน Login"]])}${trendSeg("data-trendgran",state.trendGran,[["auto","อัตโนมัติ"],["night","รายคืน"],["week","รายสัปดาห์"],["month","รายเดือน"]])}</div>`;
     const stat=(label,value)=>`<div class="mini-stat"><b>${label}</b><strong>${value}</strong></div>`;
-    const summary=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 4px">${stat(state.trendMetric==="users"?"ผู้ใช้ไม่ซ้ำทั้งหมด":"Login รวม",`${fmt(realTrend.total)} ${unit}`)}${stat("เฉลี่ย"+per.replace("ราย","ต่อ"),`${realTrend.average.toFixed(1)} ${unit}`)}${stat("สูงสุด",realTrend.peak?`${fmt(realTrend.peak.value)} ${unit}<br><small style="font-size:12px;font-weight:400;color:var(--color-muted)">${escapeHtml(realTrend.peak.label)}</small>`:"—")}</div>`;
+    const summary=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 4px">${stat(state.trendMetric==="users"?"ผู้ใช้ไม่ซ้ำ":"Login รวม",`${fmt(realTrend.total)} ${unit}`)}${state.trendMetric==="users"?stat("ผู้ใช้ซ้ำ",`${fmt(realTrend.repeatUsers)} คน`):""}${stat("เฉลี่ย"+per.replace("ราย","ต่อ"),`${realTrend.average.toFixed(1)} ${unit}`)}${stat("สูงสุด",realTrend.peak?`${fmt(realTrend.peak.value)} ${unit}<br><small style="font-size:12px;font-weight:400;color:var(--color-muted)">${escapeHtml(realTrend.peak.label)}</small>`:"—")}</div>`;
     const note=realTrend.truncated?`<div class="table-hint" style="margin-top:6px">แสดงเฉพาะช่วงล่าสุดเพื่อให้อ่านง่าย — เลือกรายสัปดาห์/รายเดือนเพื่อดูช่วงที่ยาวขึ้น</div>`:"";
     const title=`${state.trendMetric==="users"?"ผู้ใช้ที่ใช้งาน":"จำนวน Login"}${per}`;
     return `${toolbar}${summary}${barChart(state.trendMetric==="users"?"ผู้ใช้ที่ใช้งาน":"Login",unit,realTrend.points,"แนวโน้ม"+title)}${note}`
@@ -548,7 +646,7 @@ function execPage(d,p){
   const topPerformerTable=useRealRank
     ?desktopAndMobileTable(["#","ร้าน",rank.label,"ผู้ใช้ NearSip","ผู้ใช้ใหม่","Engagement"],rank.rows.map((r,i)=>[i+1,r.venue,fmt(r.value),fmt(r.uniqueUsers),fmt(r.newUsers),fmt(r.engagement)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,"",fmt(r.value),"",[["ผู้ใช้ NearSip",fmt(r.uniqueUsers)],["ผู้ใช้ใหม่",fmt(r.newUsers)],["Engagement",fmt(r.engagement)]])))
     :desktopAndMobileTable(["#","ร้าน","จังหวัด",rank.label,"ผู้ใช้","Engagement","Repeat","NSC","รายได้"],rank.rows.map((r,i)=>[i+1,r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),fmt(r.unique),fmt(r.engagement),(r.repeat30/r.unique*100).toFixed(1)+"%",fmt(r.nscConsumed),money(r.rev)]),rank.rows.map((r,i)=>mobileCard((i+1)+". "+r.venue,r.province,state.topMetric==="revenue"?money(r.value):state.topMetric.includes("Per")||state.topMetric==="repeat"?r.value.toFixed(1):fmt(r.value),"",[["ผู้ใช้",fmt(r.unique)],["Engagement",fmt(r.engagement)],["Repeat",(r.repeat30/r.unique*100).toFixed(1)+"%"],["NSC",fmt(r.nscConsumed)],["รายได้",money(r.rev)]])));
-  return`${hero("Executive Overview","ภาพรวม NearSip ที่ CEO เข้าใจได้ภายในประมาณ 10 วินาที","Headline 6 KPI · Progressive Disclosure")}
+  return`${hero("Executive Overview","ภาพรวม NearSip","Headline 6 KPI · Progressive Disclosure")}
   <div class="grid kpis">
     ${/* เดิม: ${kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")} — คอมเมนต์ไว้เป็น fallback */""}
     ${realStores.length?kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(realStores.length),"","ร้านพาร์ทเนอร์ในระบบ","neutral"):kpi("ร้านพาร์ทเนอร์ทั้งหมด",fmt(d.partnerStores),"Scope ปัจจุบัน","ร้านพาร์ทเนอร์ในระบบ","neutral")}
@@ -592,9 +690,9 @@ function partnersPage(d,p){
     ${kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
     ${kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
     */""}
-    ${realStores.length?kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(realStores.length),"","ไม่มี presence tracking จริง ใช้ยอด ACTIVE ทั้งหมดแทน","neutral"):kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
-    ${realUserStats?kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(realUserStats.newStores),"",periodLabel()+" (โดยประมาณ)","neutral"):kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
-    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time (ไม่ใช่ Total Footfall)","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
+    ${realStores.length?kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(realStores.length),"","ACTIVE ทั้งหมด","neutral"):kpi("ร้านออนไลน์อยู่ในคืนนี้",fmt(d.onlineTonight),pct(change(d.onlineTonight,p.onlineTonight)),"Online in current Business Night","good")}
+    ${realUserStats?kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(realUserStats.newStores),"",periodLabel()+"","neutral"):kpi("ร้านใหม่ที่เพิ่มเข้ามา",fmt(d.newPartner),pct(change(d.newPartner,p.newPartner)),periodLabel(),"good")}
+    ${realUserStats?kpi("ผู้ใช้ NearSip ใน Scope",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time","neutral"):kpi("ผู้ใช้ NearSip ใน Scope",fmt(d.unique),pct(change(d.unique,p.unique)),"ไม่ใช่ Total Footfall","good")}
     ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.partnerStores)),pct(change(d.unique/d.partnerStores,p.unique/p.partnerStores)),periodLabel(),"good")}
     ${kpi("Revenue / Active Venue","—","","ไม่มี table รายได้ในระบบ","neutral")}
   </div>
@@ -765,6 +863,44 @@ function merchantPage(d,p){
   ${card("Merchant Store Table","Sort ตาม Last Access, NSC Usage, Unlock Frequency หรือ Active Status",`<div class="metric-toolbar"><div class="field"><label for="merchantSortSelect">Sort ตาม</label><select id="merchantSortSelect"><option value="lastAccess">Last Dashboard Access</option><option value="nsc">NSC Usage</option><option value="unlock">Unlock Frequency</option><option value="active">Active Status</option></select></div></div>${desktopAndMobileTable(["ร้าน","จังหวัด","Last Access","NSC Usage","Unlock Frequency","Daily","Weekly","Monthly"],rows.map(r=>[r.venue,r.province,r.lastAccessMinutes+" นาที",fmt(r.dashboardUnlock),r.unlockFrequency,r.dashDaily?"Active":"—",r.dashWeekly?"Active":"—",r.dashMonthly?"Active":"—"]),rows.map(r=>mobileCard(r.venue,r.province,r.lastAccessMinutes+" นาที","",[["NSC Usage",fmt(r.dashboardUnlock)],["Unlock",r.unlockFrequency],["Daily",r.dashDaily?"Active":"—"],["Weekly",r.dashWeekly?"Active":"—"],["Monthly",r.dashMonthly?"Active":"—"]])))}`)}
   `
 }
+const ACTIVE_USER_GENDER={MALE:"ชาย",FEMALE:"หญิง",LGBTQ:"LGBTQ"};
+function activeUserCard(u){
+  const name=u.name||"ไม่ระบุชื่อ";
+  // เดิม: <img src="..." alt="" loading="lazy"> — เพิ่ม draggable="false" กัน browser ลากรูปแทนการปัดด้วยเมาส์
+  const photo=u.image?`<img src="${escapeHtml(u.image)}" alt="" loading="lazy" draggable="false">`:`<span>${escapeHtml(name.charAt(0).toUpperCase())}</span>`;
+  const meta=[ACTIVE_USER_GENDER[u.gender]||u.gender,u.age?`${u.age} ปี`:""].filter(Boolean).join(" · ");
+  // ชื่อร้านของการ login ล่าสุด — map store_id กับ realStores (จาก /api/stores) ไม่เจอ = แสดง store_id ดิบ
+  const store=u.lastStoreId?realStores.find(s=>s.storeId===u.lastStoreId):null;
+  const storeName=u.lastStoreId?(store?.name||store?.locationName||u.lastStoreId):"ยังไม่เคยเข้าร้าน";
+  // เดิม: ...<h4>${escapeHtml(name)}</h4><p>${escapeHtml(meta||"—")}</p></article>
+  return`<article class="active-user-card"><div class="active-user-photo">${photo}</div><h4>${escapeHtml(name)}</h4><p>${escapeHtml(meta||"—")}</p><p class="active-user-store">📍 ${escapeHtml(storeName)}</p></article>`
+}
+function activeUsersGridHtml(){
+  if(activeUsersFailed&&!activeUsers)return`<div class="empty-state"><h3>โหลดรายชื่อผู้ใช้ไม่สำเร็จ</h3><p>จะลองใหม่อัตโนมัติทุก 5 วินาที</p></div>`;
+  if(!activeUsers)return`<div class="empty-state"><h3>กำลังโหลด…</h3></div>`;
+  if(!activeUsers.length&&state.activeUserSearch.trim())return`<div class="empty-state"><h3>ไม่พบผู้ใช้ที่ตรงกับคำค้นหา</h3></div>`;
+  if(!activeUsers.length)return`<div class="empty-state"><h3>ยังไม่มีผู้ใช้ที่ Active ตอนนี้</h3></div>`;
+  // เดิม: return activeUsers.map(activeUserCard).join("")
+  // loop: ต่อสำเนาใบสุดท้ายไว้หน้า + สำเนาใบแรกไว้ท้าย (aria-hidden กัน screen reader อ่านซ้ำ)
+  const cards=activeUsers.map(activeUserCard);
+  if(cards.length<2)return cards.join("");
+  const clone=html=>html.replace("<article ",'<article aria-hidden="true" ');
+  return clone(cards[cards.length-1])+cards.join("")+clone(cards[0])
+}
+function activeUsersPage(){
+  // เดิม: hero("ผู้ใช้ตอนนี้","ผู้ใช้ที่มี session ยังไม่หมดอายุ (ยังล็อกอินค้างอยู่) อัปเดตทุก 5 วินาที",...)
+  // ชั่วคราว — preview การ์ด: API ตอนนี้คืน "ผู้ใช้ที่ login ล่าสุด 5 คน" (ดู listActiveSessionUsers) กลับไปใช้ข้อความเดิมเมื่อเลิก preview
+  // loop: เลื่อนไปใบ 1 จริงหลัง render() วาด DOM เสร็จ (ใบแรกสุดเป็นสำเนาใบสุดท้าย)
+  requestAnimationFrame(initActiveUsersCarousel);
+  // เดิม: hero("ผู้ใช้ตอนนี้","Preview: ผู้ใช้ที่ login ล่าสุด 5 คน (ชั่วคราว) · ปัดซ้าย/ขวาเพื่อดูการ์ด",activeUsers?`${fmt(activeUsers.length)} คน`:"") — 5 → 10 คน + ช่องค้นหา
+  // เดิม: hero(...,"Preview: ผู้ใช้ที่ login ล่าสุด 10 คน (ชั่วคราว) · ค้นหาชื่อ/email ได้ · ปัดซ้าย/ขวาเพื่อดูการ์ด",...) — เอาช่องค้นหาออกตามที่ขอ
+  return`${hero("ผู้ใช้ตอนนี้","Preview: ผู้ใช้ที่ login ล่าสุด 10 คน (ชั่วคราว) · ปัดซ้าย/ขวาเพื่อดูการ์ด",`<span id="activeUsersCount">${activeUsers?`${fmt(activeUsers.length)} คน`:""}</span>`)}
+  ${/* เอาช่องค้นหาออกตามที่ขอ — โค้ดค้นหาอื่น (?q=, handleActiveUserSearchInput, state.activeUserSearch) ยังอยู่ เปิดกลับได้โดยเอาคอมเมนต์ออก
+  <div class="field active-user-search"><label for="activeUserSearch">ค้นหาผู้ใช้</label><input id="activeUserSearch" type="search" value="${escapeHtml(state.activeUserSearch)}" placeholder="ชื่อ หรือ email" autocomplete="off"></div>
+  */""}
+  <div id="activeUsersGrid" class="active-user-grid">${activeUsersGridHtml()}</div>
+  <div id="activeUsersDots" class="active-user-dots">${activeUserDotsHtml(0)}</div>`
+}
 function realtimePage(d,p){
   const loginTotal=d.lineNow+d.emailNow;
   const genderNow=[["ชาย",d.mNow],["หญิง",d.fNow],["LGBTQ",d.lNow]];
@@ -802,11 +938,11 @@ function realtimePage(d,p){
     const arr=timeSeries(metricTotals[m],points,"peak-"+m);return labels[arr.indexOf(Math.max(...arr))]
   };
   // เดิม: hero(..., " ") ส่ง note เป็นช่องว่าง ทำให้กล่อง hero-note โชว์ว่างเปล่า — เอาออกตามที่ขอ
-  return `${hero("สถานะตอนนี้","รวมข้อมูล Real-time สำคัญทั้งหมดไว้ในหน้าเดียวสำหรับเฝ้าดูแบบสด")}
+  return `${hero("สถานะตอนนี้","รวมข้อมูล Real-time")}
 
   <div class="grid" style="margin-bottom:0">
   <section class="card" style="padding:18px">
-    <div class="card-head"><div><h3>Focus Cards — Real-time ที่ต้องเห็นก่อน</h3><p>ตัวเลขใหญ่คือ Real-time ตอนนี้ และตัวเลขเล็กสีทองด้านล่างคือยอดรวมทั้งคืนจนถึงปัจจุบัน</p></div><span class="tag warn">TV Monitoring Ready</span></div>
+    <div class="card-head"><div><h3>Real-time</h3><p>ตัวเลขใหญ่คือ Real-time ตอนนี้ และตัวเลขเล็กสีทองด้านล่างคือยอดรวมทั้งคืนจนถึงปัจจุบัน</p></div><span class="tag warn">TV Monitoring Ready</span></div>
     <div class="rt-focus-grid">
       ${/* เดิม 4 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
       ${focusCard({span:"double",tone:"primary",pill:"Critical KPI",title:"จำนวนร้านที่ออนไลน์ตอนนี้",current:fmt(d.onlineNow),tonight:fmt(d.onlineTonight),note:"ร้านที่ยัง Online ใน current moment เทียบกับร้านที่เคย Online ตลอดคืนนี้",footer:`<span>ณ ตอนนี้: ${d.onlineNow} ร้าน</span><span>คืนนี้สะสม: ${d.onlineTonight} ร้าน</span>`})}
@@ -839,11 +975,11 @@ function realtimePage(d,p){
       ${/* เดิม: Login Breakdown mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
       ${card("Login Breakdown","LINE และ Email พร้อมยอดรวมคืนนี้",`...`,"<span class='tag info'>Current State</span>")}
       */""}
-      ${realUserStats?card("Login Breakdown","LINE/Email ประมาณจาก user.email (ไม่ใช่ field login-method ตรงๆ)",`
+      ${realUserStats?card("Login Breakdown","LINE/Email",`
         <div class="grid kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
-          ${kpi("Login ทั้งหมด (login_log)",fmt(realUserStats.loginLogs.length),"","all-time","neutral")}
-          ${kpi("LINE Login (ประมาณ)",fmt(realUserStats.loginChannel.line),"","จำนวนผู้ใช้ที่ไม่มี email","neutral")}
-          ${kpi("Email Login (ประมาณ)",fmt(realUserStats.loginChannel.email),"","จำนวนผู้ใช้ที่มี email","neutral")}
+          ${kpi("Login ทั้งหมด",fmt(realUserStats.loginLogs.length),"","all-time","neutral")}
+          ${kpi("LINE Login ",fmt(realUserStats.loginChannel.line),"","จำนวนผู้ใช้ที่ไม่มี email","neutral")}
+          ${kpi("Email Login ",fmt(realUserStats.loginChannel.email),"","จำนวนผู้ใช้ที่มี email","neutral")}
         </div>
         ${stacked([["LINE",realUserStats.loginChannel.line],["Email",realUserStats.loginChannel.email]],realUserStats.uniqueUsers)}
       `,""):card("Login Breakdown","LINE และ Email พร้อมยอดรวมคืนนี้",`
@@ -874,7 +1010,7 @@ function realtimePage(d,p){
     </div>
     <div class="pie-grid">
       ${realUserStats?card("Age Pie","สัดส่วนผู้ใช้ทั้งหมด (all-time) แยกตามช่วงอายุ",pieChart([["20–30",realUserStats.ageBreakdown.a20],["31–40",realUserStats.ageBreakdown.a31],["41–50",realUserStats.ageBreakdown.a41],["51–60",realUserStats.ageBreakdown.a51],["61–70",realUserStats.ageBreakdown.a61]],realUserStats.uniqueUsers,"ทั้งหมด\n"+fmt(realUserStats.uniqueUsers)),""):card("Age Pie","สัดส่วนผู้ใช้ Active ตอนนี้แยกตามช่วงอายุ",pieChart(ageNow,d.activeNow,"Active\n"+fmt(d.activeNow)),"<span class='tag info'>Current State</span>")}
-      ${card("Current Snapshot","สรุปข้อมูลสดที่ต้องเห็นในหน้าจอเดียว",`
+      ${card("Current Snapshot","สรุปข้อมูล",`
         <div class="mini-grid">
           <div class="mini-stat"><b>Scope</b><strong>${scopeName()}</strong></div>
           <div class="mini-stat"><b>Business Night</b><strong>${state.businessNight}</strong></div>
@@ -886,7 +1022,7 @@ function realtimePage(d,p){
     </div>
   `)}
 
-  ${card("Tonight-to-date — สะสมของคืนนี้","รวมไว้ในหน้าเดียว ไม่ต้องสลับหน้าเพื่อดูยอดสะสมคืนนี้",`
+  ${card("Tonight-to-date — สะสมของคืนนี้","ยอดสะสมคืนนี้",`
     <div class="grid kpis">
       ${/* เดิม 6 บรรทัดนี้เป็น mock ทั้งหมด — คอมเมนต์ไว้เป็น fallback
       ${kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
@@ -973,7 +1109,11 @@ function noMenuAccessPage(){return`${hero("ไม่มีสิทธิ์เ�
 function showDashboardToast(message){const toast=document.getElementById("toast");toast.textContent=message;toast.classList.add("show");setTimeout(()=>toast.classList.remove("show"),2200)}
 function updateNavOverflow(){const nav=document.getElementById("mainNav");if(!nav)return;const maxScroll=Math.max(0,nav.scrollWidth-nav.clientWidth);nav.classList.toggle("can-scroll-left",nav.scrollLeft>1);nav.classList.toggle("can-scroll-right",nav.scrollLeft<maxScroll-1)}
 function renderNav(){
-  if(state.mode==="realtime"){document.getElementById("mainNav").innerHTML="";updateNavOverflow();return}
+  // เดิม: if(state.mode==="realtime"){document.getElementById("mainNav").innerHTML="";updateNavOverflow();return} — ตอนนี้โหมด Real-time มีเมนูย่อย 2 อัน
+  if(state.mode==="realtime"){
+    document.getElementById("mainNav").innerHTML=[["status","สถานะตอนนี้"],["users","ผู้ใช้ตอนนี้"]].map(([id,label])=>`<button type="button" data-page="${id}" class="${state.rtPage===id?"active":""}">${label}</button>`).join("");
+    document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.rtPage=b.dataset.page;render();if(state.rtPage==="users")loadActiveUsers()});requestAnimationFrame(updateNavOverflow);return
+  }
   const navItems=accessibleOverallMenus().map(menu=>[menu.id,menu.label]);
   // เดิม: คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "Users & Menu Access" ออกจาก nav ชั่วคราว
   // เปิดกลับมาเพื่อเทส permission (ดู [[nearsip-user-menu-permission-testing]]) — admin ต้องเข้าหน้านี้ได้ถึงจะกำหนดสิทธิ์ราย user ได้
@@ -1059,7 +1199,7 @@ function render(){
         content.innerHTML=realDataGateHtml(gate);
         const retry=document.getElementById("retryRealData");
         if(retry)retry.onclick=()=>{realUserStatsFailed=realStoresFailed=realStoreStatsFailed=false;render();loadRealStores();loadRealUserStats()}
-      }else content.innerHTML=state.mode==="realtime"?realtimePage(d,p):pages[state.page](d,p)
+      }else content.innerHTML=state.mode==="realtime"?(state.rtPage==="users"?activeUsersPage():realtimePage(d,p)):pages[state.page](d,p)
     }
     document.getElementById("contextLine").innerHTML=`<span><strong>${scopeName()}</strong></span><span>Mode: <strong>${state.mode==="overall"?"Overall":"Real-time"}</strong></span><span>Period: <strong>${state.mode==="realtime"?"Current Business Night":periodLabel()}</strong></span><span>Comparison: <strong>${state.mode==="realtime"?"คืนเทียบเคียง":compareLabel()}</strong></span><span>Business Night: <strong>${state.businessNight}</strong></span><span><span class="status-dot"></span>ข้อมูลล่าสุด: <strong>${dataAsOfLabel()}</strong></span><span><strong></strong></span>`;
     document.getElementById("mobileScope").textContent=scopeName();
@@ -1115,15 +1255,18 @@ function syncModeControls(){
 function showOverall(){const firstMenu=accessibleOverallMenus()[0];if(viewer.role!=="admin"&&!firstMenu)return;state.mode="overall";state.page=viewer.role==="admin"?"executive":firstMenu.id;syncModeControls();onModeChange("overall");render()}
 // เดิม: ไม่ได้เรียก loadActiveNow() ตรงนี้ — พอ poll ยิงเฉพาะตอน mode==="realtime" แล้ว (ดู interval ด้านล่าง)
 // ถ้าเพิ่งกดเข้าหน้านี้ต้องรอ poll รอบถัดไปสูงสุด 15 วิ ตัวเลขถึงจะสด เลยยิงทันทีตอนสลับเข้ามาด้วย
-function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render();loadActiveNow()}
+function showRealtime(){if(!canAccessMenu("realtime"))return;state.mode="realtime";syncModeControls();onModeChange("realtime");render();loadActiveNow();if(state.rtPage==="users")loadActiveUsers()}
 const controller={showOverall,showRealtime};
 activeController=controller;
 document.getElementById("filterOpen").onclick=openDrawer;document.getElementById("filterClose").onclick=closeDrawer;document.getElementById("overlay").onclick=closeDrawer;
 // เดิม: loadingUpdate(()=>{state.level=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามระดับที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
-document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value;if(state.level==="venue")state.venue="ALL";loadRealUserStats();loadEngagement()})
-document.getElementById("provinceSelect").onchange=e=>loadingUpdate(()=>{state.province=e.target.value;state.venue=PROVINCES[state.province][0]})
+// เดิม: ...{state.level=e.target.value;if(state.level==="venue")state.venue="ALL";loadRealUserStats();loadEngagement()}) — เพิ่ม reloadActiveUsersIfOpen()
+document.getElementById("levelSelect").onchange=e=>loadingUpdate(()=>{state.level=e.target.value;if(state.level==="venue")state.venue="ALL";loadRealUserStats();loadEngagement();reloadActiveUsersIfOpen()})
+// เดิม: ...{state.province=e.target.value;state.venue=PROVINCES[state.province][0]}) — เพิ่ม reloadActiveUsersIfOpen() (venue เปลี่ยน = storeId อาจเปลี่ยน)
+document.getElementById("provinceSelect").onchange=e=>loadingUpdate(()=>{state.province=e.target.value;state.venue=PROVINCES[state.province][0];reloadActiveUsersIfOpen()})
 // เดิม: loadingUpdate(()=>{state.venue=e.target.value}) — ไม่ได้ reload ข้อมูลจริงตามร้านที่เปลี่ยน เพิ่ม loadRealUserStats() ต่อท้าย
-document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venue=e.target.value;loadRealUserStats();loadEngagement()})
+// เดิม: ...{state.venue=e.target.value;loadRealUserStats();loadEngagement()}) — เพิ่ม reloadActiveUsersIfOpen() การ์ดจะได้ไม่ค้างร้านเก่ารอ poll 5 วิ
+document.getElementById("venueSelect").onchange=e=>loadingUpdate(()=>{state.venue=e.target.value;loadRealUserStats();loadEngagement();reloadActiveUsersIfOpen()})
 document.getElementById("periodSelect").onchange=e=>{state.period=e.target.value;state.compare=COMPARES[state.period][0][0];populate();render();loadRealUserStats();loadRealStoreStats();loadEngagement()}
 // ช่วง "กำหนดเอง" — เดิมไม่มี handler เลย เปลี่ยนวันที่แล้วไม่มีอะไรเกิดขึ้น
 document.getElementById("dateFrom").onchange=()=>{if(state.period==="custom"){loadEngagement();loadRealUserStats();loadRealStoreStats()}}
@@ -1157,11 +1300,23 @@ loadEngagement();
 // ให้ Overall mode ก็ขยับสดเหมือนกัน ไม่ใช่แค่หน้า Real-time เลยเอาเช็ค mode ออก ยิงทุกหน้า และกลับไป
 // 5 วิเหมือนเดิม (loadActiveNow() แก้ DOM เฉพาะจุดที่มี class "live-active-sessions"/"live-unique-users"
 // ตรงๆ ไม่เรียก render() เต็ม เลยไม่ทำให้หน้าอื่นรีเซ็ต scroll/แถวที่ขยายอยู่เหมือนเมื่อก่อน)
-realtimePollId=setInterval(()=>{if(!unmounted&&!document.hidden)loadActiveNow()},5000);
+// scroll ไม่ bubble — ฟังแบบ capture ที่ document เพราะ #activeUsersGrid ถูกสร้างใหม่ทุกครั้งที่ render()
+document.addEventListener("scroll",handleActiveUsersScroll,true);
+document.addEventListener("pointerdown",handleActiveUsersPointerDown);
+document.addEventListener("pointerup",handleActiveUsersPointerUp);
+document.addEventListener("input",handleActiveUserSearchInput);
+// รายชื่อผู้ใช้ (loadActiveUsers) ยิงเฉพาะตอนเปิดหน้า "ผู้ใช้ตอนนี้" อยู่
+realtimePollId=setInterval(()=>{if(!unmounted&&!document.hidden){loadActiveNow();if(state.mode==="realtime"&&state.rtPage==="users")loadActiveUsers()}},5000);
 
 return()=>{
   unmounted=true;
   clearInterval(realtimePollId);
+  document.removeEventListener("scroll",handleActiveUsersScroll,true);
+  clearTimeout(activeUsersSnapTimer);
+  document.removeEventListener("pointerdown",handleActiveUsersPointerDown);
+  document.removeEventListener("pointerup",handleActiveUsersPointerUp);
+  document.removeEventListener("input",handleActiveUserSearchInput);
+  clearTimeout(activeUserSearchTimer);
   window.removeEventListener("orientationchange",handleOrientationChange);
   window.removeEventListener("keydown",handleKeyDown);
   window.removeEventListener("resize",handleNavResize);

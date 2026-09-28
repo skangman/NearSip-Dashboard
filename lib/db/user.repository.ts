@@ -1,4 +1,5 @@
 import { BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR } from "@/lib/domain/period";
+import type { ActiveUser } from "@/lib/domain/user-stats";
 import type { Queryable } from "./pool";
 import { toNumber, userInStoreFilter } from "./sql";
 
@@ -65,6 +66,52 @@ export async function countActiveSessions(db: Queryable): Promise<number> {
     `SELECT COUNT(*) AS active_sessions FROM session WHERE expires > now()`,
   );
   return toNumber(result.rows[0]?.active_sessions);
+}
+
+/**
+ * รายชื่อผู้ใช้ที่มี session ยังไม่หมดอายุ (เงื่อนไขเดียวกับ countActiveSessions)
+ * ใช้ subquery แทน JOIN กัน `id` ใน userInStoreFilter ชนกับ session.id
+ */
+// เดิม: export async function listActiveSessionUsers(db: Queryable, storeId: string | null): Promise<ActiveUser[]> {
+// เพิ่ม search (ชื่อ/email, ไม่สนตัวพิมพ์เล็กใหญ่) — null/ว่าง = ไม่กรอง
+export async function listActiveSessionUsers(
+  db: Queryable,
+  storeId: string | null,
+  search: string | null = null,
+): Promise<ActiveUser[]> {
+  // ชั่วคราว — preview การ์ด: ตอนนี้ยังไม่มี session ไหนที่ยังไม่หมดอายุ เลยดึง "ผู้ใช้ที่ login ล่าสุด 5 คน" มาแสดงแทน
+  // จะกลับไปใช้ของจริง: เอาคอมเมนต์ query เดิมด้านล่างออก แล้วลบ query preview
+  // const result = await db.query<ActiveUser>(
+  //   `SELECT id, name, image, age, gender::text AS gender FROM "user"
+  //    WHERE id IN (SELECT user_id FROM session WHERE expires > now())
+  //      AND ${userInStoreFilter(1)}
+  //    ORDER BY name LIMIT 200`,
+  //   [storeId],
+  // );
+  // เดิม (preview 5 คน ไม่มี search/ร้าน):
+  // const result = await db.query<ActiveUser>(
+  //   `SELECT id, name, image, age, gender::text AS gender FROM "user"
+  //    WHERE ${userInStoreFilter(1)}
+  //    ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id) DESC NULLS LAST
+  //    LIMIT 5`,
+  //   [storeId],
+  // );
+  // เดิม: WHERE ไม่มี EXISTS login_log — ผู้ใช้ที่ไม่เคย login ที่ร้านไหนขึ้นการ์ด "ยังไม่เคยเข้าร้าน" ตัดออกตามที่ขอ
+  // escape % _ \ ที่ผู้ใช้พิมพ์ ให้ ILIKE ค้นเป็นตัวอักษรตรงๆ
+  const pattern = search?.trim() ? `%${search.trim().replace(/[\\%_]/g, "\\$&")}%` : null;
+  const result = await db.query<ActiveUser & { last_store_id: string | null }>(
+    `SELECT id, name, image, age, gender::text AS gender,
+            (SELECT l.store_id FROM login_log l WHERE l.user_id = "user".id
+             ORDER BY l.create_date DESC LIMIT 1) AS last_store_id
+     FROM "user"
+     WHERE ${userInStoreFilter(1)}
+       AND ($2::text IS NULL OR name ILIKE $2 OR email ILIKE $2)
+       AND EXISTS (SELECT 1 FROM login_log l WHERE l.user_id = "user".id)
+     ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id) DESC NULLS LAST
+     LIMIT 10`,
+    [storeId, pattern],
+  );
+  return result.rows.map(({ last_store_id, ...row }) => ({ ...row, lastStoreId: last_store_id }));
 }
 
 /** เพศ — จาก user.gender (enum MALE/FEMALE/LGBTQ) */

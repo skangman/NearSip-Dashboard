@@ -22,10 +22,10 @@ export function fmtNight(night: string): string {
   return dateFormat.format(new Date(`${night}T12:00:00+07:00`));
 }
 
-/** A real event timestamp (ISO) as "12 ก.ย. 2026 10:04 ICT" in Thai time. */
+/** A real event timestamp (ISO) as "12 ก.ย. 2026 10:04" in Thai time. */
 export function fmtDateTime(iso: string): string {
   const at = new Date(iso);
-  return `${dateFormat.format(at)} ${timeFormat.format(at)} ICT`;
+  return `${dateFormat.format(at)} ${timeFormat.format(at)}`;
 }
 
 export function escapeHtml(value: unknown): string {

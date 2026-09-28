@@ -1,6 +1,6 @@
-import { fetchActiveNowStats, fetchUserStats } from "@/lib/db/user-stats.repository";
+import { fetchActiveNowStats, fetchActiveUsers, fetchUserStats } from "@/lib/db/user-stats.repository";
 import { fetchPresenceActiveCount } from "@/lib/clients/presence-client";
-import type { ActiveNowStats, UserStats } from "@/lib/domain/user-stats";
+import type { ActiveNowStats, ActiveUser, UserStats } from "@/lib/domain/user-stats";
 import { isIsoDate, nightOf } from "@/lib/domain/period";
 import { BadRequestError } from "@/lib/http/errors";
 
@@ -46,4 +46,10 @@ export async function getActiveNow(storeId?: string): Promise<ActiveNowStats> {
   }
 
   return { activeSessions, uniqueUsers: stats.uniqueUsers };
+}
+
+/** รายชื่อผู้ใช้ที่ Active ตอนนี้ (session ยังไม่หมดอายุ) — สำหรับหน้า "ผู้ใช้ตอนนี้" */
+// เดิม: getActiveUsers(storeId?) — เพิ่ม search (?q=)
+export async function getActiveUsers(storeId?: string, search?: string): Promise<{ users: ActiveUser[] }> {
+  return { users: await fetchActiveUsers(storeId ?? null, search ?? null) };
 }

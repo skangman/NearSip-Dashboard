@@ -30,6 +30,8 @@ export type LoginTrend = {
   /** Mean of the bars, empty periods included. */
   average: number;
   peak: { label: string; value: number } | null;
+  /** Distinct users with 2+ logins within the shown period (same truncated scope as `total`). */
+  repeatUsers: number;
   /** True when older periods were left out to keep the chart readable. */
   truncated: boolean;
 };
@@ -93,10 +95,20 @@ export function buildLoginTrend(
     : shown.reduce((sum, b) => sum + b.logins, 0);
   const average = points.reduce((sum, p) => sum + p.value, 0) / points.length;
 
+  // "repeat" users: 2+ logins within the same shown/truncated scope as `total` above
+  const shownStart = shown[0]?.start;
+  const loginCounts = new Map<string, number>();
+  if (shownStart) {
+    for (const e of entries) {
+      if (e.userId && e.night >= shownStart) loginCounts.set(e.userId, (loginCounts.get(e.userId) ?? 0) + 1);
+    }
+  }
+  const repeatUsers = [...loginCounts.values()].filter((c) => c >= 2).length;
+
   let peak: LoginTrend["peak"] = null;
   for (const p of points) {
     if (p.value > 0 && (peak === null || p.value > peak.value)) peak = { label: p.tooltipLabel, value: p.value };
   }
 
-  return { granularity, points, total, average, peak, truncated };
+  return { granularity, points, total, average, peak, repeatUsers, truncated };
 }
