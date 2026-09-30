@@ -99,15 +99,23 @@ export async function listActiveSessionUsers(
   // เดิม: WHERE ไม่มี EXISTS login_log — ผู้ใช้ที่ไม่เคย login ที่ร้านไหนขึ้นการ์ด "ยังไม่เคยเข้าร้าน" ตัดออกตามที่ขอ
   // escape % _ \ ที่ผู้ใช้พิมพ์ ให้ ILIKE ค้นเป็นตัวอักษรตรงๆ
   const pattern = search?.trim() ? `%${search.trim().replace(/[\\%_]/g, "\\$&")}%` : null;
+  // เดิม: last_store_id กับ ORDER BY ดู login ของทุกร้าน — เลือกร้านแล้วยังเรียงตาม login ล่าสุดที่ร้านอื่น และ 📍 ขึ้นชื่อร้านอื่นได้
+  //   (SELECT l.store_id FROM login_log l WHERE l.user_id = "user".id
+  //    ORDER BY l.create_date DESC LIMIT 1) AS last_store_id
+  //   ...
+  //   ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id) DESC NULLS LAST
+  // ตอนนี้: เลือกร้าน ($1 ไม่ null) = ดูเฉพาะ login_log ของร้านนั้น, "ทั้งหมด" ($1 null) = ทุกร้านเหมือนเดิม
   const result = await db.query<ActiveUser & { last_store_id: string | null }>(
     `SELECT id, name, image, age, gender::text AS gender,
             (SELECT l.store_id FROM login_log l WHERE l.user_id = "user".id
+               AND ($1::text IS NULL OR l.store_id = $1)
              ORDER BY l.create_date DESC LIMIT 1) AS last_store_id
      FROM "user"
      WHERE ${userInStoreFilter(1)}
        AND ($2::text IS NULL OR name ILIKE $2 OR email ILIKE $2)
        AND EXISTS (SELECT 1 FROM login_log l WHERE l.user_id = "user".id)
-     ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id) DESC NULLS LAST
+     ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id
+                 AND ($1::text IS NULL OR l.store_id = $1)) DESC NULLS LAST
      LIMIT 10`,
     [storeId, pattern],
   );
