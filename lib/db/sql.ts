@@ -23,9 +23,13 @@ export function userInStoreFilter(param: number): string {
  * user ที่ข้อมูลครบ (มีรูป + อายุ + เพศ) — คนที่ไม่ครบไม่นับในทุกสถิติ
  * `column` = คอลัมน์ที่เก็บ user id ของแถวนั้น (เช่น `"user".id`, `login_log.user_id`, `inittiator_user_id`)
  * user_id ที่ไม่มีแถวใน "user" เลยก็ไม่ผ่านเงื่อนไขนี้เช่นกัน
+ * ต้องเคย login ที่ร้านใดร้านหนึ่งด้วย (มีแถวใน login_log) — คนที่สมัครแต่ยังไม่เคยเข้าร้านไม่อยู่ในยอดรายร้านไหนเลย
+ * ถ้านับไว้ ยอดรวม (เช่น ผู้ใช้ใหม่ 7) จะไม่ตรงกับผลรวมรายร้าน (6)
  */
 export function completeUserFilter(column: string): string {
+  // เดิม: ไม่มีบรรทัด EXISTS login_log
   return `EXISTS (SELECT 1 FROM "user" cu WHERE cu.id = ${column}
             AND cu.image IS NOT NULL AND cu.image <> ''
-            AND cu.age IS NOT NULL AND cu.gender IS NOT NULL)`;
+            AND cu.age IS NOT NULL AND cu.gender IS NOT NULL
+            AND EXISTS (SELECT 1 FROM login_log ll WHERE ll.user_id = cu.id))`;
 }

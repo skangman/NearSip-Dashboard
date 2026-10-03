@@ -4,7 +4,7 @@ import type { Queryable } from "./pool";
 // เดิม: import { toNumber, userInStoreFilter } from "./sql";
 import { completeUserFilter, toNumber, userInStoreFilter } from "./sql";
 
-// ทุก query ในไฟล์นี้นับเฉพาะ user ที่ข้อมูลครบ (รูป + อายุ + เพศ) — ดู completeUserFilter ใน ./sql
+// ทุก query ในไฟล์นี้นับเฉพาะ user ที่ข้อมูลครบ (รูป + อายุ + เพศ) และเคย login ที่ร้านใดร้านหนึ่ง — ดู completeUserFilter ใน ./sql
 const completeUser = completeUserFilter(`"user".id`);
 
 export type UserCounts = {
