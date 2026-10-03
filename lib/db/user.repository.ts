@@ -30,6 +30,9 @@ export async function countUsers(
   tonight: string,
   storeId: string | null,
 ): Promise<UserCounts> {
+  // ผู้ใช้ใหม่ = สมัครตั้งแต่ 18:00 น. เมื่อวาน ถึงก่อน 12:00 น. วันนี้ (เวลาไทย) ตามที่ขอ — ใช้ทั้ง new_tonight และ existing_tonight
+  const newSignupWindow = `(create_at AT TIME ZONE $4::text) >= (now() AT TIME ZONE $4::text)::date - interval '6 hours'
+                          AND (create_at AT TIME ZONE $4::text) <  (now() AT TIME ZONE $4::text)::date + interval '12 hours'`;
   // เดิม: WHERE ${userInStoreFilter(3)} — เพิ่ม AND ${completeUser}
   const result = await db.query<Record<string, string | null>>(
     `SELECT
@@ -37,11 +40,16 @@ export async function countUsers(
        COUNT(*) FILTER (WHERE $1::date IS NOT NULL AND ${signupNight} >= $1::date
                           AND ($2::date IS NULL OR ${signupNight} <= $2::date)) AS new_users,
        COUNT(*) FILTER (WHERE $1::date IS NOT NULL AND ${signupNight} < $1::date) AS existing_users,
-       COUNT(*) FILTER (WHERE ${signupNight} >= $6::date) AS new_tonight,
-       COUNT(*) FILTER (WHERE ${signupNight} < $6::date) AS existing_tonight
+       -- เดิม: COUNT(*) FILTER (WHERE ${signupNight} >= $6::date) AS new_tonight,
+       -- ใช้กับการ์ดผู้ใช้ใหม่ (Executive ช่วง "ทั้งหมด"), Top Performer รายร้าน และ "ผู้ใช้ใหม่สะสมคืนนี้" (Real-time)
+       COUNT(*) FILTER (WHERE ${newSignupWindow}) AS new_tonight,
+       -- เดิม: COUNT(*) FILTER (WHERE ${signupNight} < $6::date) AS existing_tonight
+       -- ผู้ใช้เดิม = ทุกคนใน scope ที่ไม่ใช่ผู้ใช้ใหม่ (ใหม่ + เดิม = ทั้งหมด)
+       COUNT(*) FILTER (WHERE NOT (${newSignupWindow})) AS existing_tonight
      FROM "user"
      WHERE ${userInStoreFilter(3)} AND ${completeUser}`,
-    [range.from, range.to, storeId, BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR, tonight],
+    // เดิม: [..., NIGHT_CUTOFF_HOUR, tonight] — ไม่ได้ใช้ $6 (tonight) แล้ว ต้องเอาออก ไม่งั้น Postgres ฟ้องหา type ของ $6 ไม่เจอ
+    [range.from, range.to, storeId, BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR],
   );
   const row = result.rows[0];
   return {
