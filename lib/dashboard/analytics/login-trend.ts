@@ -7,7 +7,7 @@
 import type { LoginLogEntry } from "@/lib/domain/user-stats";
 import {
   NIGHTLY_MAX_NIGHTS, bucketEnd, bucketStart, chartGranularity, nextBucketStart, nightOf,
-  type ChartGranularity,
+  type ChartGranularity, type NightRange,
 } from "@/lib/domain/period";
 import { fmtMonth, fmtNight, fmtNightShort } from "@/lib/dashboard/render/format";
 import type { BarPoint } from "@/lib/dashboard/render/bar-chart";
@@ -48,6 +48,8 @@ export function buildLoginTrend(
   logs: LoginLogEntry[],
   metric: TrendMetric,
   choice: TrendGranularityChoice,
+  // ช่วงเวลาที่เลือก (คืนธุรกิจ, null = ไม่จำกัดฝั่งนั้น) — login นอกช่วงถูกตัดทิ้งก่อนจัดกลุ่ม; ไม่ส่ง = all-time เหมือนเดิม
+  range: NightRange = { from: null, to: null },
 ): LoginTrend | null {
   // userId is kept only for registered users (present in the "user" table) so the distinct-user count matches the
   // "ผู้ใช้ NearSip" KPI; login_log also holds ids that are not users (deleted/test accounts, blanks). The raw login
@@ -55,7 +57,10 @@ export function buildLoginTrend(
   const entries: { night: string; userId: string | null }[] = [];
   for (const log of logs) {
     const at = new Date(log.createAt);
-    if (!Number.isNaN(at.getTime())) entries.push({ night: nightOf(at), userId: log.registered ? log.userId : null });
+    if (Number.isNaN(at.getTime())) continue;
+    const night = nightOf(at);
+    if ((range.from && night < range.from) || (range.to && night > range.to)) continue;
+    entries.push({ night, userId: log.registered ? log.userId : null });
   }
   if (entries.length === 0) return null;
 
