@@ -6,7 +6,8 @@
 import { BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR } from "@/lib/domain/period";
 import { LOGIN_NIGHT_CTES, type NightFilter, type NightlyRow } from "./engagement.repository";
 import type { Queryable } from "./pool";
-import { storeFilter, toNumber } from "./sql";
+// เดิม: import { storeFilter, toNumber } from "./sql";
+import { completeUserFilter, storeFilter, toNumber } from "./sql";
 
 const night = (column: string) =>
   `((${column} AT TIME ZONE $4::text) - make_interval(hours => $5::int))::date`;
@@ -15,10 +16,12 @@ const inRange = (column: string) =>
 const queryParams = (f: NightFilter) => [f.from, f.to, f.storeId, BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR];
 
 /** Cheers status: 0 = pending, 1 = accepted (= a Match), 2 = refused. */
+// เดิม: FROM cheers WHERE ${storeFilter(3)} — เพิ่ม: ผู้ส่งและผู้รับต้องข้อมูลครบทั้งคู่ (รูป + อายุ + เพศ)
 const CHEERS_CTE = `r AS (
   SELECT id, store_id, inittiator_user_id AS sender, responder_user_id AS receiver, status, create_at,
          ${night("create_at")} AS night
   FROM cheers WHERE ${storeFilter(3)}
+    AND ${completeUserFilter("inittiator_user_id")} AND ${completeUserFilter("responder_user_id")}
 ), r2 AS (SELECT * FROM r WHERE ${inRange("night")})`;
 
 export type CheersRaw = {
@@ -100,10 +103,12 @@ export async function fetchNightlyCheers(
  * Chats are counted on the night of their first message ("chat started" = first message sent).
  * A chat is two-way when at least two different users sent messages in it.
  */
+// เดิม: WHERE ${storeFilter(3, "ch.store_id")} — เพิ่ม: user1 และ user2 ของ chat ต้องข้อมูลครบทั้งคู่
 const CHAT_CTES = `msgs AS (
   SELECT m.chat_id, m.sender_id, m.sent_at
   FROM messages m JOIN chats ch ON ch.id = m.chat_id
   WHERE ${storeFilter(3, "ch.store_id")}
+    AND ${completeUserFilter("ch.user1_id")} AND ${completeUserFilter("ch.user2_id")}
 ), started AS (
   SELECT chat_id, MIN(sent_at) AS first_at, COUNT(DISTINCT sender_id) AS senders FROM msgs GROUP BY chat_id
 ), s2 AS (

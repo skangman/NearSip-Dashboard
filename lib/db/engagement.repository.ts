@@ -1,6 +1,7 @@
 import { BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR } from "@/lib/domain/period";
 import type { Queryable } from "./pool";
-import { storeFilter, toNumber } from "./sql";
+// เดิม: import { storeFilter, toNumber } from "./sql";
+import { completeUserFilter, storeFilter, toNumber } from "./sql";
 
 export type NightFilter = { from: string | null; to: string | null; storeId: string | null };
 
@@ -26,12 +27,14 @@ export type RetentionRaw = {
  * Shared CTEs: one row per (user, store, night) from login_log.
  *   in_range  every store, nights inside [$1, $2]   scope  in_range limited to store $3
  * Params: $1 from, $2 to, $3 storeId, $4 time zone, $5 night cut-off hour.
+ * เดิม: base กรองแค่ user_id ไม่ว่าง — เพิ่ม completeUserFilter: นับเฉพาะ user ที่ข้อมูลครบ (รูป + อายุ + เพศ)
  */
 export const LOGIN_NIGHT_CTES = `base AS (
        SELECT user_id, store_id,
               ((create_date AT TIME ZONE $4::text) - make_interval(hours => $5::int))::date AS night
        FROM login_log
        WHERE user_id IS NOT NULL AND user_id <> ''
+         AND ${completeUserFilter("login_log.user_id")}
      ),
      in_range AS (
        SELECT DISTINCT user_id, store_id, night FROM base

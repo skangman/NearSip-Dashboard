@@ -50,6 +50,11 @@ export async function getActiveNow(storeId?: string): Promise<ActiveNowStats> {
 
 /** รายชื่อผู้ใช้ที่ Active ตอนนี้ (session ยังไม่หมดอายุ) — สำหรับหน้า "ผู้ใช้ตอนนี้" */
 // เดิม: getActiveUsers(storeId?) — เพิ่ม search (?q=)
-export async function getActiveUsers(storeId?: string, search?: string): Promise<{ users: ActiveUser[] }> {
-  return { users: await fetchActiveUsers(storeId ?? null, search ?? null) };
+// เดิม: getActiveUsers(storeId?, search?) — เพิ่ม onlineOnly (?view=online)
+export async function getActiveUsers(
+  storeId?: string,
+  search?: string,
+  onlineOnly = false,
+): Promise<{ users: ActiveUser[] }> {
+  return { users: await fetchActiveUsers(storeId ?? null, search ?? null, onlineOnly) };
 }

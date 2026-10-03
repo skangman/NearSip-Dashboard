@@ -204,6 +204,7 @@ async function loadActiveUsers(){
     const params=new URLSearchParams();
     if(storeId)params.set("storeId",storeId);
     if(state.activeUserSearch.trim())params.set("q",state.activeUserSearch.trim());
+    params.set("view",state.activeUsersView);
     const qs=params.toString()?`?${params}`:"";
     const res=await fetch(`/api/active-users${qs}`);
     if(unmounted)return;
@@ -343,7 +344,9 @@ const state={
   // เมนูย่อยของโหมด Real-time: "status" = สถานะตอนนี้ (realtimePage) · "users" = ผู้ใช้ตอนนี้ (activeUsersPage)
   rtPage:"status",
   // คำค้นในหน้า "ผู้ใช้ตอนนี้" (ชื่อ/email) — ส่งเป็น ?q= ไป /api/active-users
-  activeUserSearch:""
+  activeUserSearch:"",
+  // ปุ่มสลับในหน้า "ผู้ใช้ตอนนี้": "online" = session ยังไม่หมดอายุ · "recent" = login ล่าสุด 10 คน — ส่งเป็น ?view=
+  activeUsersView:"online"
 };
 function canAccessMenu(menuId){return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)}
 function accessibleOverallMenus(){return OVERALL_DASHBOARD_MENUS.filter(menu=>canAccessMenu(menu.id))}
@@ -879,7 +882,8 @@ function activeUsersGridHtml(){
   if(activeUsersFailed&&!activeUsers)return`<div class="empty-state"><h3>โหลดรายชื่อผู้ใช้ไม่สำเร็จ</h3><p>จะลองใหม่อัตโนมัติทุก 5 วินาที</p></div>`;
   if(!activeUsers)return`<div class="empty-state"><h3>กำลังโหลด…</h3></div>`;
   if(!activeUsers.length&&state.activeUserSearch.trim())return`<div class="empty-state"><h3>ไม่พบผู้ใช้ที่ตรงกับคำค้นหา</h3></div>`;
-  if(!activeUsers.length)return`<div class="empty-state"><h3>ยังไม่มีผู้ใช้ที่ Active ตอนนี้</h3></div>`;
+  // เดิม: if(!activeUsers.length)return`<div class="empty-state"><h3>ยังไม่มีผู้ใช้ที่ Active ตอนนี้</h3></div>`;
+  if(!activeUsers.length)return`<div class="empty-state"><h3>${state.activeUsersView==="online"?"ยังไม่มีผู้ใช้ที่ Active ตอนนี้":"ยังไม่มีผู้ใช้ที่เคย login"}</h3></div>`;
   // เดิม: return activeUsers.map(activeUserCard).join("")
   // loop: ต่อสำเนาใบสุดท้ายไว้หน้า + สำเนาใบแรกไว้ท้าย (aria-hidden กัน screen reader อ่านซ้ำ)
   const cards=activeUsers.map(activeUserCard);
@@ -894,7 +898,10 @@ function activeUsersPage(){
   requestAnimationFrame(initActiveUsersCarousel);
   // เดิม: hero("ผู้ใช้ตอนนี้","Preview: ผู้ใช้ที่ login ล่าสุด 5 คน (ชั่วคราว) · ปัดซ้าย/ขวาเพื่อดูการ์ด",activeUsers?`${fmt(activeUsers.length)} คน`:"") — 5 → 10 คน + ช่องค้นหา
   // เดิม: hero(...,"Preview: ผู้ใช้ที่ login ล่าสุด 10 คน (ชั่วคราว) · ค้นหาชื่อ/email ได้ · ปัดซ้าย/ขวาเพื่อดูการ์ด",...) — เอาช่องค้นหาออกตามที่ขอ
-  return`${hero("ผู้ใช้ตอนนี้","Preview: ผู้ใช้ที่ login ล่าสุด 10 คน (ชั่วคราว) · ปัดซ้าย/ขวาเพื่อดูการ์ด",`<span id="activeUsersCount">${activeUsers?`${fmt(activeUsers.length)} คน`:""}</span>`)}
+  // เดิม: hero("ผู้ใช้ตอนนี้","Preview: ผู้ใช้ที่ login ล่าสุด 10 คน (ชั่วคราว) · ปัดซ้าย/ขวาเพื่อดูการ์ด",...) — เพิ่มปุ่มสลับ online/recent
+  const subtitle=state.activeUsersView==="online"?"ผู้ใช้ที่มี session ยังไม่หมดอายุ (ยังล็อกอินค้างอยู่) อัปเดตทุก 5 วินาที · ปัดซ้าย/ขวาเพื่อดูการ์ด":"ผู้ใช้ที่ login ล่าสุด 10 คน · ปัดซ้าย/ขวาเพื่อดูการ์ด";
+  return`${hero("ผู้ใช้ตอนนี้",subtitle,`<span id="activeUsersCount">${activeUsers?`${fmt(activeUsers.length)} คน`:""}</span>`)}
+  <div class="seg" style="width:max-content;margin-bottom:14px">${[["online","ออนไลน์ตอนนี้"],["recent","login ล่าสุด 10 คน"]].map(([v,l])=>`<button type="button" data-auview="${v}" class="${state.activeUsersView===v?"active":""}">${l}</button>`).join("")}</div>
   ${/* เอาช่องค้นหาออกตามที่ขอ — โค้ดค้นหาอื่น (?q=, handleActiveUserSearchInput, state.activeUserSearch) ยังอยู่ เปิดกลับได้โดยเอาคอมเมนต์ออก
   <div class="field active-user-search"><label for="activeUserSearch">ค้นหาผู้ใช้</label><input id="activeUserSearch" type="search" value="${escapeHtml(state.activeUserSearch)}" placeholder="ชื่อ หรือ email" autocomplete="off"></div>
   */""}
@@ -1133,6 +1140,8 @@ function bindControls(){
   document.querySelectorAll("[data-trendmetric]").forEach(b=>b.onclick=()=>{state.trendMetric=b.dataset.trendmetric;render()});
   document.querySelectorAll("[data-trendgran]").forEach(b=>b.onclick=()=>{state.trendGran=b.dataset.trendgran;render()});
   document.querySelectorAll("[data-nsctab]").forEach(b=>b.onclick=()=>{state.nscTab=b.dataset.nsctab;render()});
+  // reloadActiveUsersIfOpen() ก่อน render() — ล้างการ์ดโหมดเก่าเป็น "กำลังโหลด…" แล้วค่อยวาด
+  document.querySelectorAll("[data-auview]").forEach(b=>b.onclick=()=>{if(state.activeUsersView===b.dataset.auview)return;state.activeUsersView=b.dataset.auview;reloadActiveUsersIfOpen();render()});
   document.querySelectorAll("[data-revtrend]").forEach(b=>b.onclick=()=>{state.revenueTrend=b.dataset.revtrend;render()});
   const permissionSearch=document.getElementById("permissionUserSearch");
   if(permissionSearch){

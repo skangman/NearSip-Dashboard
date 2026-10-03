@@ -87,6 +87,11 @@ export async function fetchActiveNowStats(storeId: string | null): Promise<Activ
 }
 
 // เดิม: fetchActiveUsers(storeId) — เพิ่ม search
-export async function fetchActiveUsers(storeId: string | null, search: string | null = null): Promise<ActiveUser[]> {
-  return withClient((db) => listActiveSessionUsers(db, storeId, search));
+// เดิม: fetchActiveUsers(storeId, search) — เพิ่ม onlineOnly
+export async function fetchActiveUsers(
+  storeId: string | null,
+  search: string | null = null,
+  onlineOnly = false,
+): Promise<ActiveUser[]> {
+  return withClient((db) => listActiveSessionUsers(db, storeId, search, onlineOnly));
 }

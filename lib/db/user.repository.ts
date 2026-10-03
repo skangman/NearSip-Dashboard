@@ -1,7 +1,11 @@
 import { BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR } from "@/lib/domain/period";
 import type { ActiveUser } from "@/lib/domain/user-stats";
 import type { Queryable } from "./pool";
-import { toNumber, userInStoreFilter } from "./sql";
+// เดิม: import { toNumber, userInStoreFilter } from "./sql";
+import { completeUserFilter, toNumber, userInStoreFilter } from "./sql";
+
+// ทุก query ในไฟล์นี้นับเฉพาะ user ที่ข้อมูลครบ (รูป + อายุ + เพศ) — ดู completeUserFilter ใน ./sql
+const completeUser = completeUserFilter(`"user".id`);
 
 export type UserCounts = {
   uniqueUsers: number;
@@ -26,6 +30,7 @@ export async function countUsers(
   tonight: string,
   storeId: string | null,
 ): Promise<UserCounts> {
+  // เดิม: WHERE ${userInStoreFilter(3)} — เพิ่ม AND ${completeUser}
   const result = await db.query<Record<string, string | null>>(
     `SELECT
        COUNT(*) AS unique_users,
@@ -35,7 +40,7 @@ export async function countUsers(
        COUNT(*) FILTER (WHERE ${signupNight} >= $6::date) AS new_tonight,
        COUNT(*) FILTER (WHERE ${signupNight} < $6::date) AS existing_tonight
      FROM "user"
-     WHERE ${userInStoreFilter(3)}`,
+     WHERE ${userInStoreFilter(3)} AND ${completeUser}`,
     [range.from, range.to, storeId, BUSINESS_TIME_ZONE, NIGHT_CUTOFF_HOUR, tonight],
   );
   const row = result.rows[0];
@@ -50,8 +55,9 @@ export async function countUsers(
 
 /** เฉพาะ unique_users (ไม่ต้องใช้ days) — สำหรับ poll เบาของ Active-now */
 export async function countUniqueUsers(db: Queryable, storeId: string | null): Promise<number> {
+  // เดิม: `SELECT COUNT(*) AS unique_users FROM "user" WHERE ${userInStoreFilter(1)}`
   const result = await db.query<{ unique_users: string }>(
-    `SELECT COUNT(*) AS unique_users FROM "user" WHERE ${userInStoreFilter(1)}`,
+    `SELECT COUNT(*) AS unique_users FROM "user" WHERE ${userInStoreFilter(1)} AND ${completeUser}`,
     [storeId],
   );
   return toNumber(result.rows[0]?.unique_users);
@@ -62,8 +68,10 @@ export async function countUniqueUsers(db: Queryable, storeId: string | null): P
  * กรองตามร้านไม่ได้จริง เป็นยอดรวมทั้งระบบเสมอ
  */
 export async function countActiveSessions(db: Queryable): Promise<number> {
+  // เดิม: `SELECT COUNT(*) AS active_sessions FROM session WHERE expires > now()`
   const result = await db.query<{ active_sessions: string }>(
-    `SELECT COUNT(*) AS active_sessions FROM session WHERE expires > now()`,
+    `SELECT COUNT(*) AS active_sessions FROM session
+     WHERE expires > now() AND ${completeUserFilter("session.user_id")}`,
   );
   return toNumber(result.rows[0]?.active_sessions);
 }
@@ -78,6 +86,8 @@ export async function listActiveSessionUsers(
   db: Queryable,
   storeId: string | null,
   search: string | null = null,
+  // true = เฉพาะผู้ใช้ที่ session ยังไม่หมดอายุ (ปุ่ม "ออนไลน์ตอนนี้"), false = login ล่าสุด 10 คน (preview เดิม)
+  onlineOnly = false,
 ): Promise<ActiveUser[]> {
   // ชั่วคราว — preview การ์ด: ตอนนี้ยังไม่มี session ไหนที่ยังไม่หมดอายุ เลยดึง "ผู้ใช้ที่ login ล่าสุด 5 คน" มาแสดงแทน
   // จะกลับไปใช้ของจริง: เอาคอมเมนต์ query เดิมด้านล่างออก แล้วลบ query preview
@@ -105,6 +115,9 @@ export async function listActiveSessionUsers(
   //   ...
   //   ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id) DESC NULLS LAST
   // ตอนนี้: เลือกร้าน ($1 ไม่ null) = ดูเฉพาะ login_log ของร้านนั้น, "ทั้งหมด" ($1 null) = ทุกร้านเหมือนเดิม
+  // เดิม: WHERE ${userInStoreFilter(1)} AND ... — เพิ่ม AND ${completeUser} (ไม่แสดง user ที่ข้อมูลไม่ครบ)
+  // เดิม: ... AND EXISTS (...login_log...) ... LIMIT 10`, [storeId, pattern] — เพิ่ม $3 onlineOnly (เงื่อนไขเดียวกับ
+  // countActiveSessions) + $4 LIMIT (online 200 ตาม query เดิมที่คอมเมนต์ไว้ด้านบน, recent 10)
   const result = await db.query<ActiveUser & { last_store_id: string | null }>(
     `SELECT id, name, image, age, gender::text AS gender,
             (SELECT l.store_id FROM login_log l WHERE l.user_id = "user".id
@@ -112,12 +125,14 @@ export async function listActiveSessionUsers(
              ORDER BY l.create_date DESC LIMIT 1) AS last_store_id
      FROM "user"
      WHERE ${userInStoreFilter(1)}
+       AND ${completeUser}
        AND ($2::text IS NULL OR name ILIKE $2 OR email ILIKE $2)
        AND EXISTS (SELECT 1 FROM login_log l WHERE l.user_id = "user".id)
+       AND ($3::boolean IS NOT TRUE OR "user".id IN (SELECT user_id FROM session WHERE expires > now()))
      ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id
                  AND ($1::text IS NULL OR l.store_id = $1)) DESC NULLS LAST
-     LIMIT 10`,
-    [storeId, pattern],
+     LIMIT $4`,
+    [storeId, pattern, onlineOnly, onlineOnly ? 200 : 10],
   );
   return result.rows.map(({ last_store_id, ...row }) => ({ ...row, lastStoreId: last_store_id }));
 }
@@ -127,9 +142,10 @@ export async function countByGender(
   db: Queryable,
   storeId: string | null,
 ): Promise<{ male: number; female: number; lgbtq: number }> {
+  // เดิม: WHERE gender IS NOT NULL AND ${userInStoreFilter(1)} — เพิ่ม AND ${completeUser}
   const result = await db.query<{ gender: string; count: string }>(
     `SELECT gender::text, COUNT(*) AS count FROM "user"
-     WHERE gender IS NOT NULL AND ${userInStoreFilter(1)}
+     WHERE gender IS NOT NULL AND ${userInStoreFilter(1)} AND ${completeUser}
      GROUP BY gender`,
     [storeId],
   );
@@ -147,6 +163,7 @@ export async function countByAgeBand(
   db: Queryable,
   storeId: string | null,
 ): Promise<{ a20: number; a31: number; a41: number; a51: number; a61: number }> {
+  // เดิม: WHERE ${userInStoreFilter(1)} — เพิ่ม AND ${completeUser}
   const result = await db.query<{
     a20: string; a31: string; a41: string; a51: string; a61: string;
   }>(
@@ -157,7 +174,7 @@ export async function countByAgeBand(
        COUNT(*) FILTER (WHERE age BETWEEN 51 AND 60) AS a51,
        COUNT(*) FILTER (WHERE age BETWEEN 61 AND 70) AS a61
      FROM "user"
-     WHERE ${userInStoreFilter(1)}`,
+     WHERE ${userInStoreFilter(1)} AND ${completeUser}`,
     [storeId],
   );
   const row = result.rows[0];
@@ -178,12 +195,13 @@ export async function countByLoginChannel(
   db: Queryable,
   storeId: string | null,
 ): Promise<{ email: number; line: number }> {
+  // เดิม: WHERE ${userInStoreFilter(1)} — เพิ่ม AND ${completeUser}
   const result = await db.query<{ email_count: string; line_count: string }>(
     `SELECT
        COUNT(*) FILTER (WHERE email IS NOT NULL) AS email_count,
        COUNT(*) FILTER (WHERE email IS NULL) AS line_count
      FROM "user"
-     WHERE ${userInStoreFilter(1)}`,
+     WHERE ${userInStoreFilter(1)} AND ${completeUser}`,
     [storeId],
   );
   return {
@@ -194,9 +212,10 @@ export async function countByLoginChannel(
 
 /** จำกัด 5000 แถวล่าสุดกันโหลดหนัก — ไม่ bucket ใน SQL (การแบ่งช่วงเวลาทำฝั่ง dashboard) */
 export async function listUserCreatedTimes(db: Queryable, storeId: string | null): Promise<string[]> {
+  // เดิม: WHERE ${userInStoreFilter(1)} — เพิ่ม AND ${completeUser}
   const result = await db.query<{ create_at: string }>(
     `SELECT create_at FROM "user"
-     WHERE ${userInStoreFilter(1)}
+     WHERE ${userInStoreFilter(1)} AND ${completeUser}
      ORDER BY create_at DESC LIMIT 5000`,
     [storeId],
   );

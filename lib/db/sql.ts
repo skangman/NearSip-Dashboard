@@ -18,3 +18,14 @@ export function storeFilter(param: number, column = "store_id"): string {
 export function userInStoreFilter(param: number): string {
   return `($${param}::text IS NULL OR id IN (SELECT DISTINCT user_id FROM login_log WHERE store_id = $${param}))`;
 }
+
+/**
+ * user ที่ข้อมูลครบ (มีรูป + อายุ + เพศ) — คนที่ไม่ครบไม่นับในทุกสถิติ
+ * `column` = คอลัมน์ที่เก็บ user id ของแถวนั้น (เช่น `"user".id`, `login_log.user_id`, `inittiator_user_id`)
+ * user_id ที่ไม่มีแถวใน "user" เลยก็ไม่ผ่านเงื่อนไขนี้เช่นกัน
+ */
+export function completeUserFilter(column: string): string {
+  return `EXISTS (SELECT 1 FROM "user" cu WHERE cu.id = ${column}
+            AND cu.image IS NOT NULL AND cu.image <> ''
+            AND cu.age IS NOT NULL AND cu.gender IS NOT NULL)`;
+}
