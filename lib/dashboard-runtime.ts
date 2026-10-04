@@ -109,7 +109,9 @@ async function loadRealStoreStats(){
         const json=await res.json();
         // เดิม: newUsers:json.newUsers??null — "ทั้งหมด" ได้ null แล้วแสดง "—" (ดู newCell/valueCell ที่คอมเมนต์ไว้ใน execPage)
         // ตอนนี้ "ทั้งหมด" เทียบกับคืนนี้ (แบบ A) จึงใช้ newUsersTonight แทนเมื่อ server ไม่ได้แยกตามช่วง
-        return{venue:s.name||s.locationName||s.storeId,uniqueUsers:json.uniqueUsers||0,newUsers:json.newUsers??json.newUsersTonight??null,engagement:(json.cheersTotal||0)+(json.chatsTotal||0)};
+        // "วันนี้" ใช้ newUsersTonight (สมัครวันนี้ 00:00 – 24:00 น.) ให้ตรงกับการ์ดผู้ใช้ใหม่ — เดิม: newUsers:json.newUsers??json.newUsersTonight??null
+        const newUsers=state.period==="today"?json.newUsersTonight??null:json.newUsers??json.newUsersTonight??null;
+        return{venue:s.name||s.locationName||s.storeId,uniqueUsers:json.uniqueUsers||0,newUsers,engagement:(json.cheersTotal||0)+(json.chatsTotal||0)};
       }catch{return null}
     }));
     if(unmounted)return;
@@ -452,15 +454,19 @@ function kpi(label,value,deltaText,meta,status="good"){return`<article class="kp
 // เดิม: null → แสดง "—" พร้อม NO_SPLIT_NOTE (คอมเมนต์ไว้เป็น fallback ไม่ลบ)
 // const NO_SPLIT_NOTE="เลือกช่วงเวลาอื่นที่ไม่ใช่ “ทั้งหมด” เพื่อแยกผู้ใช้ใหม่/เดิม";
 const ALLTIME_VS_TONIGHT_NOTE="";
+// "วันนี้" = สมัครวันนี้ 00:00 – 24:00 น. (เดิม 18:00 เมื่อวาน – 12:00 วันนี้) — ใช้ newUsersTonight/existingUsersTonight ตัวเดียวกับ "ทั้งหมด"
+// (เดิม "วันนี้" ใช้ newUsers ตัดรอบ 06:00 ตัวเลขเลยไม่ตรงกับ "ทั้งหมด")
 function realNewUsersKpi(label){
+  if(state.period==="today")return kpi(label,fmt(realUserStats.newUsersTonight),"","วันนี้ · สมัคร 00:00 – 24:00 น.","neutral");
   const n=realUserStats.newUsers;
   // เดิม: return n===null?kpi(label,"—","",NO_SPLIT_NOTE,"neutral"):kpi(label,fmt(n),"",periodLabel()+" · สมัครใหม่ (ตัดรอบ 06:00 น.)","neutral")
   return n===null?kpi(label,fmt(realUserStats.newUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+"สมัครใหม่","neutral"):kpi(label,fmt(n),"",periodLabel()+" · สมัครใหม่ (ตัดรอบ 06:00 น.)","neutral")
 }
 function realExistingUsersKpi(label){
+  if(state.period==="today")return kpi(label,fmt(realUserStats.existingUsersTonight),"","สมัครก่อนวันนี้","neutral");
   const n=realUserStats.existingUsers;
   // เดิม: return n===null?kpi(label,"—","",NO_SPLIT_NOTE,"neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
-  return n===null?kpi(label,fmt(realUserStats.existingUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+"สมัครก่อนคืนนี้","neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
+  return n===null?kpi(label,fmt(realUserStats.existingUsersTonight),"",ALLTIME_VS_TONIGHT_NOTE+"สมัครก่อนวันนี้","neutral"):kpi(label,fmt(n),"","สมัครก่อนช่วง "+periodLabel(),"neutral")
 }
 function card(title,subtitle,body,tag=""){return`<section class="card"><div class="card-head"><div><h3>${title}</h3><p>${subtitle}</p></div>${tag}</div>${body}</section>`}
 function hero(title,desc,note=""){return`<div class="hero"><div><h2>${title}</h2><p>${desc}</p></div>${note?`<div class="hero-note">${note}</div>`:""}</div>`}
@@ -1044,8 +1050,8 @@ function realtimePage(d,p){
       ${kpi("NSC Used คืนนี้",fmt(d.nscConsumed),pct(change(d.nscConsumed,p.nscConsumed)),"Tonight-to-date","good")}
       */""}
       ${realUserStats?kpi("Unique Users สะสมคืนนี้",`<span class="live-unique-users">${fmt(realUserStats.uniqueUsers)}</span>`,"","all-time (ไม่แยกเฉพาะคืนนี้)","neutral"):kpi("Unique Users สะสมคืนนี้",fmt(d.unique),pct(change(d.unique,p.unique)),"คืนเทียบเคียง","good")}
-      ${realUserStats?kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(realUserStats.newUsersTonight),"","สมัคร 18:00 น. เมื่อวาน – 12:00 น. วันนี้","neutral"):kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),"คืนเทียบเคียง","good")}
-      ${realUserStats?kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(realUserStats.existingUsersTonight),"","สมัครก่อนคืนนี้","neutral"):kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(d.existing),pct(change(d.existing,p.existing)),"คืนเทียบเคียง","good")}
+      ${realUserStats?kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(realUserStats.newUsersTonight),"","สมัครวันนี้ 00:00 – 24:00 น.","neutral"):kpi("ผู้ใช้ใหม่สะสมคืนนี้",fmt(d.newUsers),pct(change(d.newUsers,p.newUsers)),"คืนเทียบเคียง","good")}
+      ${realUserStats?kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(realUserStats.existingUsersTonight),"","สมัครก่อนวันนี้","neutral"):kpi("ผู้ใช้เดิมสะสมคืนนี้",fmt(d.existing),pct(change(d.existing,p.existing)),"คืนเทียบเคียง","good")}
       ${kpi("ผู้ใช้เฉลี่ยต่อชั่วโมง","—","","ไม่มี timestamp แยกตามชั่วโมงที่ใช้ได้","neutral")}
       ${realUserStats&&realStores.length?kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(realUserStats.uniqueUsers/realStores.length),"","ผู้ใช้ทั้งหมด / ร้าน ACTIVE ทั้งหมด","neutral"):kpi("ผู้ใช้เฉลี่ยต่อร้าน",fmt(d.unique/Math.max(1,d.onlineTonight)),pct(change(d.unique/Math.max(1,d.onlineTonight),p.unique/Math.max(1,p.onlineTonight))),"Online venues tonight","good")}
       ${kpi("NSC Used คืนนี้","—","","ไม่มี table รายได้/NSC ในระบบ","neutral")}

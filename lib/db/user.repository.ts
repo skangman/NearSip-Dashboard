@@ -30,12 +30,13 @@ export async function countUsers(
   tonight: string,
   storeId: string | null,
 ): Promise<UserCounts> {
-  // ผู้ใช้ใหม่ = สมัครตั้งแต่ 18:00 น. เมื่อวาน ถึงก่อน 12:00 น. วันนี้ (เวลาไทย) ตามที่ขอ — ใช้ทั้ง new_tonight และ existing_tonight
-  // เดิม: ช่วงคำนวณจากวันที่ปัจจุบันอย่างเดียว (now()::date - 6h ถึง now()::date + 12h) — เลยเที่ยงแล้วยังค้างรอบเมื่อคืน
-  // ตอนนี้: รอบเริ่ม 18:00 ของวันที่ (now - 12h) จบ 12:00 วันถัดไป — เลย 12:00 ผู้ใช้ใหม่ย้ายไปเป็นผู้ใช้เดิมทันที,
-  // ถึง 18:00 เริ่มรอบใหม่ทันที
-  const newSignupWindow = `(create_at AT TIME ZONE $4::text) >= ((now() AT TIME ZONE $4::text) - interval '12 hours')::date + interval '18 hours'
-                          AND (create_at AT TIME ZONE $4::text) <  ((now() AT TIME ZONE $4::text) - interval '12 hours')::date + interval '36 hours'`;
+  // ผู้ใช้ใหม่ = สมัครวันนี้ 00:00 – 24:00 น. (เวลาไทย) ตามที่ขอ — ใช้ทั้ง new_tonight และ existing_tonight (เดิม: 18:00 น. เมื่อวาน – 12:00 น. วันนี้)
+  // เดิม: รอบ 18:00 – 12:00 วันถัดไป
+  // const newSignupWindow = `(create_at AT TIME ZONE $4::text) >= ((now() AT TIME ZONE $4::text) - interval '12 hours')::date + interval '18 hours'
+  //                         AND (create_at AT TIME ZONE $4::text) <  ((now() AT TIME ZONE $4::text) - interval '12 hours')::date + interval '36 hours'`;
+  // ตอนนี้: ผู้ใช้ใหม่ = สมัครวันนี้ตามปฏิทิน 00:00 – 24:00 น. (เวลาไทย) ตามที่ขอ
+  const newSignupWindow = `(create_at AT TIME ZONE $4::text) >= (now() AT TIME ZONE $4::text)::date
+                          AND (create_at AT TIME ZONE $4::text) <  (now() AT TIME ZONE $4::text)::date + interval '1 day'`;
   // เดิม: WHERE ${userInStoreFilter(3)} — เพิ่ม AND ${completeUser}
   const result = await db.query<Record<string, string | null>>(
     `SELECT

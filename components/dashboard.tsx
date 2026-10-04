@@ -164,7 +164,7 @@ export function Dashboard({ viewer, managedUsers }: DashboardProps) {
               {/* เดิม "ทั้งหมด" อยู่ล่างสุด — ย้ายขึ้นบนสุดตามที่ขอ (ยังเป็น defaultValue เดิม) */}
               <select id="periodSelect" defaultValue="alltime">
                 <option value="alltime">ทั้งหมด</option>
-                <option value="tonight">คืนนี้</option>
+                {/* เดิม: <option value="tonight">คืนนี้</option> — เอาออกตามที่ขอ เหลือ "วันนี้" อย่างเดียว */}
                 <option value="today">วันนี้</option>
                 <option value="7d">7 วัน</option>
                 <option value="30d">30 วัน</option>
