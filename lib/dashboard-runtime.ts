@@ -877,10 +877,18 @@ function merchantPage(d,p){
   `
 }
 const ACTIVE_USER_GENDER={MALE:"ชาย",FEMALE:"หญิง",LGBTQ:"LGBTQ"};
+// รูป user ใน DB มี 2 แบบ: URL เต็ม (https://nearsip.com/backend-api/stocks/user/...) หรือแค่ path (<uuid>/profile.jpg)
+// path อย่างเดียว → ต่อ USER_IMAGE_BASE ข้างหน้า (ไม่งั้น browser จะไปหาที่ dashboard.nearsip.com แล้วรูปไม่ขึ้น)
+const USER_IMAGE_BASE="https://nearsip.com/backend-api/stocks/user/";
+function userImageUrl(img){
+  if(/^(https?:|data:)/i.test(img))return img;
+  return USER_IMAGE_BASE+img.replace(/^\/+/,"");
+}
 function activeUserCard(u){
   const name=u.name||"ไม่ระบุชื่อ";
   // เดิม: <img src="..." alt="" loading="lazy"> — เพิ่ม draggable="false" กัน browser ลากรูปแทนการปัดด้วยเมาส์
-  const photo=u.image?`<img src="${escapeHtml(u.image)}" alt="" loading="lazy" draggable="false">`:`<span>${escapeHtml(name.charAt(0).toUpperCase())}</span>`;
+  // เดิม: <img src="${escapeHtml(u.image)}" ...> — ใช้ค่าจาก DB ตรงๆ, path ที่ไม่มีโดเมนรูปไม่ขึ้น → ผ่าน userImageUrl()
+  const photo=u.image?`<img src="${escapeHtml(userImageUrl(u.image))}" alt="" loading="lazy" draggable="false">`:`<span>${escapeHtml(name.charAt(0).toUpperCase())}</span>`;
   const meta=[ACTIVE_USER_GENDER[u.gender]||u.gender,u.age?`${u.age} ปี`:""].filter(Boolean).join(" · ");
   // ชื่อร้านของการ login ล่าสุด — map store_id กับ realStores (จาก /api/stores) ไม่เจอ = แสดง store_id ดิบ
   const store=u.lastStoreId?realStores.find(s=>s.storeId===u.lastStoreId):null;
