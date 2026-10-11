@@ -124,7 +124,8 @@ export const PARTNER_ALLOWED_MENUS = DASHBOARD_MENUS.map((menu) => menu.id).filt
 );
 
 /** ร้านที่ยังไม่เคยตั้ง (dashboard_menus = NULL) */
-export const PARTNER_DEFAULT_MENUS: DashboardMenuId[] = ["executive", "users", "time", "realtime"];
+// เดิม: ["executive", "users", "time", "realtime"] — ตามที่ขอ ค่าเริ่มต้นของร้านเหลือแค่ Executive Overview
+export const PARTNER_DEFAULT_MENUS: DashboardMenuId[] = ["executive"];
 
 /** dashboard_menus จาก DB → เมนูที่ร้านเห็นได้จริง (null = ค่าเริ่มต้น · กรองเหลือเฉพาะที่อนุญาต · เรียงตาม DASHBOARD_MENUS) */
 export function partnerMenus(stored: readonly string[] | null | undefined): DashboardMenuId[] {
