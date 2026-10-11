@@ -682,7 +682,7 @@ function lineChart(series,labels,title="แนวโน้ม",unit="จำน�
 function desktopAndMobileTable(headers,rows,mobileCards){
   const visible=mobileCards.slice(0,8),remaining=mobileCards.slice(8);
   const more=remaining.length?`<details class="mobile-more"><summary>ดูรายการทั้งหมดอีก ${remaining.length} รายการ</summary>${remaining.join("")}</details>`:"";
-  return`<div class="table-hint">Tablet และ Mobile แสดงคอลัมน์สำคัญก่อน กดดูรายละเอียดหรือรายการทั้งหมดได้</div><div class="table-wrap desktop-table"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div><div class="mobile-list">${visible.join("")}${more}</div>`
+  return`<div class="table-wrap desktop-table"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div><div class="mobile-list">${visible.join("")}${more}</div>`
 }
 function mobileCard(title,subtitle,main,status,details){
   return`<article class="mobile-item"><div class="mobile-item-head"><div><h4>${title}</h4><p>${subtitle}</p></div><strong>${main}</strong></div>${status?`<div style="margin-top:7px">${status}</div>`:""}<details><summary>ดูรายละเอียด</summary><div class="detail-grid">${details.map(x=>`<div><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join("")}</div></details></article>`
@@ -1256,7 +1256,8 @@ function partnerUsersPage(){
     qrButton(p),
     ...(canEdit?[editButton(p)]:[])
   ]);
-  const cards=partnerUsers.map(p=>mobileCard(escapeHtml(p.name||p.storeId),escapeHtml(p.locationName||"—"),statusTag(p),`${passwordTag(p)} ${qrButton(p)} ${editButton(p)}`,
+  // เดิม: status = `${passwordTag(p)} ${qrButton(p)} ${editButton(p)}` — ปุ่ม QR/แก้ไขชิดขวา (ดู .partner-mobile-actions)
+  const cards=partnerUsers.map(p=>mobileCard(escapeHtml(p.name||p.storeId),escapeHtml(p.locationName||"—"),statusTag(p),`<div class="partner-mobile-actions">${passwordTag(p)}<span>${qrButton(p)}${editButton(p)}</span></div>`,
     [["Store ID",escapeHtml(p.storeId)],["ละติจูด",coord(p.latitud)],["ลองจิจูด",coord(p.longitude)],["รัศมี (ม.)",fmt(p.radius)],["จังหวัด",escapeHtml(p.province||"—")],["Username",escapeHtml(p.username||"—")]]));
   const active=partnerUsers.filter(p=>p.status==="ACTIVE").length,withAccount=partnerUsers.filter(p=>p.username&&p.hasPassword).length;
   const kpis=`<div class="grid partner-kpis">

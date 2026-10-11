@@ -1035,3 +1035,8 @@ th:has(> .partner-col-center),td:has(> [data-partner-qr]){text-align:center}
 .partner-map-expand:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 /* Users & Menu Access — การ์ดในรายชื่อไม่หดตัว (เดิมรายชื่อเกินกล่อง max-height 580px → การ์ดถูกบีบ ข้อความบรรทัดล่างล้นทับขอบ) */
 .permission-user-option{flex-shrink:0}
+/* User Partners — การ์ดมือถือ: ป้าย Password ซ้าย · ปุ่ม QR/แก้ไขชิดขวา */
+.partner-mobile-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.partner-mobile-actions>span{display:flex;gap:6px}
+/* User Partners — มือถือ (hero เรียงแนวตั้ง ≤767px): ป้ายจำนวนร้านซ้าย · ปุ่ม "+ เพิ่มสถานที่" ชิดขวา */
+@media(max-width:767px){.hero-note:has(> .partner-add-btn){align-self:stretch;justify-content:space-between}}
