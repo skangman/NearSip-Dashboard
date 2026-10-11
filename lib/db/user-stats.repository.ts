@@ -92,6 +92,8 @@ export async function fetchActiveUsers(
   storeId: string | null,
   search: string | null = null,
   onlineOnly = false,
+  presenceUserIds: string[] | null = null,
 ): Promise<ActiveUser[]> {
-  return withClient((db) => listActiveSessionUsers(db, storeId, search, onlineOnly));
+  // เดิม: listActiveSessionUsers(db, storeId, search, onlineOnly) — เพิ่ม presenceUserIds (ดูใน user.repository)
+  return withClient((db) => listActiveSessionUsers(db, storeId, search, onlineOnly, presenceUserIds));
 }

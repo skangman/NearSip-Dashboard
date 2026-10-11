@@ -101,6 +101,9 @@ export async function listActiveSessionUsers(
   search: string | null = null,
   // true = เฉพาะผู้ใช้ที่ session ยังไม่หมดอายุ (ปุ่ม "ออนไลน์ตอนนี้"), false = login ล่าสุด 10 คน (preview เดิม)
   onlineOnly = false,
+  // user id ที่ออนไลน์จาก presence tracker ของแอป (ใช้เมื่อ onlineOnly) — null = เรียก presence ไม่ได้ ใช้ตาราง session แทน
+  //   ตาราง session ว่างตลอดเพราะแอปใช้ NextAuth strategy "jwt" — ดู getActiveNow() ใน user-stats-service
+  presenceUserIds: string[] | null = null,
 ): Promise<ActiveUser[]> {
   // ชั่วคราว — preview การ์ด: ตอนนี้ยังไม่มี session ไหนที่ยังไม่หมดอายุ เลยดึง "ผู้ใช้ที่ login ล่าสุด 5 คน" มาแสดงแทน
   // จะกลับไปใช้ของจริง: เอาคอมเมนต์ query เดิมด้านล่างออก แล้วลบ query preview
@@ -141,11 +144,15 @@ export async function listActiveSessionUsers(
        AND ${completeUser}
        AND ($2::text IS NULL OR name ILIKE $2 OR email ILIKE $2)
        AND EXISTS (SELECT 1 FROM login_log l WHERE l.user_id = "user".id)
-       AND ($3::boolean IS NOT TRUE OR "user".id IN (SELECT user_id FROM session WHERE expires > now()))
+       -- เดิม: AND ($3::boolean IS NOT TRUE OR "user".id IN (SELECT user_id FROM session WHERE expires > now()))
+       AND ($3::boolean IS NOT TRUE OR
+            ($5::text[] IS NOT NULL AND "user".id = ANY($5::text[])) OR
+            ($5::text[] IS NULL AND "user".id IN (SELECT user_id FROM session WHERE expires > now())))
      ORDER BY (SELECT MAX(create_date) FROM login_log l WHERE l.user_id = "user".id
                  AND ($1::text IS NULL OR l.store_id = $1)) DESC NULLS LAST
      LIMIT $4`,
-    [storeId, pattern, onlineOnly, onlineOnly ? 200 : 10],
+    // เดิม: [storeId, pattern, onlineOnly, onlineOnly ? 200 : 10]
+    [storeId, pattern, onlineOnly, onlineOnly ? 200 : 10, presenceUserIds],
   );
   return result.rows.map(({ last_store_id, ...row }) => ({ ...row, lastStoreId: last_store_id }));
 }

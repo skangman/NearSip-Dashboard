@@ -1,5 +1,6 @@
 import { fetchActiveNowStats, fetchActiveUsers, fetchUserStats } from "@/lib/db/user-stats.repository";
-import { fetchPresenceActiveCount } from "@/lib/clients/presence-client";
+// เดิม: import { fetchPresenceActiveCount } from "@/lib/clients/presence-client";
+import { fetchPresenceActiveCount, fetchPresenceActiveUserIds } from "@/lib/clients/presence-client";
 import type { ActiveNowStats, ActiveUser, UserStats } from "@/lib/domain/user-stats";
 import { isIsoDate, nightOf } from "@/lib/domain/period";
 import { BadRequestError } from "@/lib/http/errors";
@@ -34,13 +35,23 @@ export function getUserStats(opts: { days?: number; storeId?: string; from?: str
  * ใน DB เพราะแอปนั้นใช้ NextAuth session.strategy: "jwt" ทำให้ตาราง session ว่างตลอด (ไม่ใช่บั๊กที่
  * poll interval แก้ได้) ถ้าเรียก presence ไม่สำเร็จจะ fallback ไปใช้ค่าจาก DB
  */
-export async function getActiveNow(storeId?: string): Promise<ActiveNowStats> {
+// เดิม: getActiveNow(storeId?) — เพิ่ม scopeToStore: บัญชีร้าน (presence เป็นยอดรวมทั้งระบบ → นับเฉพาะคนที่เคยเข้าร้านนี้)
+export async function getActiveNow(storeId?: string, scopeToStore = false): Promise<ActiveNowStats> {
   const stats = await fetchActiveNowStats(storeId ?? null);
 
   let activeSessions = stats.activeSessions;
   try {
-    const presenceCount = await fetchPresenceActiveCount();
-    if (presenceCount !== null) activeSessions = presenceCount;
+    // เดิม: const presenceCount = await fetchPresenceActiveCount(); if (presenceCount !== null) activeSessions = presenceCount;
+    if (scopeToStore && storeId) {
+      // ใช้เงื่อนไขเดียวกับรายชื่อ "ออนไลน์ตอนนี้" (getActiveUsers) → ตัวเลขตรงกับจำนวนการ์ด
+      const presenceUserIds = await fetchPresenceActiveUserIds();
+      if (presenceUserIds !== null) {
+        activeSessions = (await fetchActiveUsers(storeId, null, true, presenceUserIds)).length;
+      }
+    } else {
+      const presenceCount = await fetchPresenceActiveCount();
+      if (presenceCount !== null) activeSessions = presenceCount;
+    }
   } catch (err) {
     console.warn("presence count fetch failed, falling back to DB session count", err);
   }
@@ -56,5 +67,16 @@ export async function getActiveUsers(
   search?: string,
   onlineOnly = false,
 ): Promise<{ users: ActiveUser[] }> {
-  return { users: await fetchActiveUsers(storeId ?? null, search ?? null, onlineOnly) };
+  // เดิม: return { users: await fetchActiveUsers(storeId ?? null, search ?? null, onlineOnly) };
+  // "ออนไลน์ตอนนี้" ใช้ presence tracker แหล่งเดียวกับการ์ด Active (getActiveNow) — ตาราง session ว่างตลอด
+  // เรียก presence ไม่สำเร็จ → presenceUserIds = null → fallback ไปใช้ตาราง session เหมือนเดิม
+  let presenceUserIds: string[] | null = null;
+  if (onlineOnly) {
+    try {
+      presenceUserIds = await fetchPresenceActiveUserIds();
+    } catch (err) {
+      console.warn("presence users fetch failed, falling back to DB session list", err);
+    }
+  }
+  return { users: await fetchActiveUsers(storeId ?? null, search ?? null, onlineOnly, presenceUserIds) };
 }

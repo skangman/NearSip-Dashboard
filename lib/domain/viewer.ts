@@ -7,6 +7,10 @@ export type Viewer = {
   role: ViewerRole;
   province?: string;
   venue?: string;
+  // มีเฉพาะบัญชีร้าน (login ด้วย set_location.username/password) — server บังคับข้อมูลทุก API เป็นร้านนี้ (ดู api-handler)
+  storeId?: string;
+  /** เมนูที่ร้านเห็นได้ (set_location.dashboard_menus ผ่าน partnerMenus()) — บัญชีเดิมไม่มี ใช้ localStorage เหมือนเดิม */
+  menus?: string[];
 };
 
 export type ManagedUser = Pick<
@@ -17,6 +21,11 @@ export type ManagedUser = Pick<
   // เพิ่มตามที่ขอ — ให้ admin สูงสุดเห็น password ของ user ในหน้า Users & Menu Access
   // (เฉพาะ mock account ในระบบนี้ ไม่ใช่ credential จริงของใคร)
   password: string;
+  // บัญชีร้านในหน้า Users & Menu Access — สิทธิ์เมนูเก็บใน DB (dashboard_menus) แทน localStorage
+  storeId?: string;
+  menus?: string[];
+  /** รหัสร้านเป็น bcrypt ดูย้อนหลังไม่ได้ — แสดงแค่ตั้งแล้ว/ยัง */
+  hasPassword?: boolean;
 };
 
 export type PublicMockAccount = {

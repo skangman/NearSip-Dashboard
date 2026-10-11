@@ -7,6 +7,7 @@ import { getActiveNow } from "@/lib/services/user-stats-service";
  * ใช้กับ poll ความถี่สูงของการ์ด "ผู้ใช้ NearSip ที่ Active ตอนนี้" (ดูเหตุผลใน getActiveNow())
  */
 export const GET = authenticatedRoute(
-  ({ searchParams }) => getActiveNow(stringParam(searchParams, "storeId")),
+  // เดิม: ({ searchParams }) => getActiveNow(stringParam(searchParams, "storeId")),
+  ({ viewer, searchParams }) => getActiveNow(stringParam(searchParams, "storeId"), Boolean(viewer.storeId)),
   { failureMessage: "Failed to reach database", logLabel: "active-count" },
 );

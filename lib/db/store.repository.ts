@@ -18,3 +18,11 @@ export async function countNewStores(
   );
   return toNumber(result.rows[0]?.new_stores);
 }
+
+/** จังหวัดของแต่ละร้าน (set_location.province ที่ตั้งในเมนู "User Partners") — store_id → province */
+export async function listStoreProvinces(db: Queryable): Promise<Map<string, string | null>> {
+  const result = await db.query<{ store_id: string; province: string | null }>(
+    `SELECT store_id, province FROM set_location`,
+  );
+  return new Map(result.rows.map((row) => [row.store_id, row.province || null]));
+}

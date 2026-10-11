@@ -14,6 +14,8 @@ export const DASHBOARD_MENUS = [
   // { id: "nsc", label: "NSC & Revenue", mode: "overall" },
   // คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "Merchant Success" ออกจาก nav ชั่วคราว
   // { id: "merchant", label: "Merchant Success", mode: "overall" },
+  // บัญชีร้านพาร์ทเนอร์ (set_location.username/password) — แท็บวางก่อน "Users & Menu Access" (ท้ายสุด) ดู renderNav()
+  { id: "partnerUsers", label: "User Partners", mode: "overall" },
   { id: "realtime", label: "Real-time", mode: "realtime" },
 ] as const;
 
@@ -110,4 +112,22 @@ export function saveUserMenuPermissions(
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// บัญชีร้าน (partner) — สิทธิ์เมนูเก็บใน set_location.dashboard_menus (ไม่ใช่ localStorage)
+// ---------------------------------------------------------------------------
+
+/** เมนูที่ตั้งให้ร้านได้ — ทุกเมนูยกเว้น "User Partners" (หน้าจัดการบัญชีทุกร้าน) */
+export const PARTNER_ALLOWED_MENUS = DASHBOARD_MENUS.map((menu) => menu.id).filter(
+  (id) => id !== "partnerUsers",
+);
+
+/** ร้านที่ยังไม่เคยตั้ง (dashboard_menus = NULL) */
+export const PARTNER_DEFAULT_MENUS: DashboardMenuId[] = ["executive", "users", "time", "realtime"];
+
+/** dashboard_menus จาก DB → เมนูที่ร้านเห็นได้จริง (null = ค่าเริ่มต้น · กรองเหลือเฉพาะที่อนุญาต · เรียงตาม DASHBOARD_MENUS) */
+export function partnerMenus(stored: readonly string[] | null | undefined): DashboardMenuId[] {
+  const source = new Set(stored ?? PARTNER_DEFAULT_MENUS);
+  return PARTNER_ALLOWED_MENUS.filter((id) => source.has(id));
 }

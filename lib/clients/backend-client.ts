@@ -126,6 +126,47 @@ export async function fetchStoreLocations(): Promise<BackendStoreLocation[]> {
   return envelope.data ?? [];
 }
 
+/** snake_case body ของ backend.Models.UpdateSetLocationModel (ช่องที่เป็น null/ว่าง backend จะไม่แก้) */
+export type BackendUpdateLocationPayload = {
+  storeId: string;
+  name: string;
+  location_name: string;
+  latitud: number;
+  longitude: number;
+  radius: number;
+  status: BackendLocationStatus;
+};
+
+/**
+ * POST {BACKEND_BASE}/api/set-location — สร้างร้านใหม่ (endpoint เดียวกับปุ่ม "เพิ่มสถานที่" ของ nearsip-internal)
+ * ต้องผ่าน backend เพราะ backend เขียน Redis ของร้านด้วย · คืน storeId ที่ backend สร้างให้
+ */
+export async function createStoreLocation(payload: Omit<BackendUpdateLocationPayload, "storeId">): Promise<string> {
+  const envelope = await backendFetch<{ status: boolean; message: string | null; data: { storeId?: string } | null }>(
+    "/api/set-location",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+  );
+  if (!envelope?.status || !envelope.data?.storeId) {
+    throw new BackendRequestError(envelope?.message || "Backend failed to create location", 400, envelope);
+  }
+  return envelope.data.storeId;
+}
+
+/**
+ * PUT {BACKEND_BASE}/api/set-location — endpoint เดียวกับหน้า Location ของ nearsip-internal
+ * backend ตอบ 200 เสมอ แม้ไม่พบร้าน ({ status:false, message }) จึงแปลงเป็น BackendRequestError เอง
+ */
+export async function updateStoreLocation(payload: BackendUpdateLocationPayload): Promise<void> {
+  const envelope = await backendFetch<{ status: boolean; message: string | null }>("/api/set-location", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!envelope?.status) {
+    throw new BackendRequestError(envelope?.message || "Backend failed to update location", 400, envelope);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/cheers/{storeId}/{responderUserId} — backend.Controllers.CheersController
 // ---------------------------------------------------------------------------

@@ -10,11 +10,17 @@ import { fmtDateTime } from "@/lib/dashboard/render/format";
 import { barChart } from "@/lib/dashboard/render/bar-chart";
 import { buildLoginTrend } from "@/lib/dashboard/analytics/login-trend";
 import { nightOf, resolveNightRange } from "@/lib/domain/period";
+import QRCode from "qrcode";
+// CSS ของ Leaflet (แผนที่ปักหมุดใน modal User Partners) — ตัว library โหลดแบบ dynamic ใน initPartnerMap()
+import "leaflet/dist/leaflet.css";
+// เดิม: import { THAI_PROVINCES } from "@/lib/domain/thai-provinces";
+import { THAI_PROVINCES, THAI_PROVINCE_CODES } from "@/lib/domain/thai-provinces";
 import {
   DASHBOARD_MENUS,
   OVERALL_DASHBOARD_MENUS,
   loadUserMenuPermissions,
   saveUserMenuPermissions,
+  PARTNER_ALLOWED_MENUS,
 } from "@/lib/domain/menu-access";
 
 let activeController = null;
@@ -59,7 +65,9 @@ const COMPARES={
 };
 const initialMode=document.getElementById("realtimeBtn")?.getAttribute("aria-pressed")==="true"?"realtime":"overall";
 const authorizedProvince=viewer.province&&PROVINCES[viewer.province]?viewer.province:"กรุงเทพมหานคร";
-const authorizedVenue=viewer.venue&&PROVINCES[authorizedProvince].includes(viewer.venue)?viewer.venue:PROVINCES[authorizedProvince][0];
+// เดิม: const authorizedVenue=viewer.venue&&PROVINCES[authorizedProvince].includes(viewer.venue)?viewer.venue:PROVINCES[authorizedProvince][0];
+// บัญชีร้าน (viewer.storeId) = ชื่อร้านจริง แทนร้าน mock — ตัวเลขจริง server บังคับเป็นร้านนี้อยู่แล้ว (api-handler)
+const authorizedVenue=viewer.storeId&&viewer.venue?viewer.venue:viewer.venue&&PROVINCES[authorizedProvince].includes(viewer.venue)?viewer.venue:PROVINCES[authorizedProvince][0];
 // role "province" ที่ไม่ได้ระบุ viewer.province (เช่น admin01-03 ดู [[nearsip-user-menu-permission-testing]])
 // ให้ scope เป็น level:"country" เหมือน admin (เห็นทุกจังหวัด/ทุกร้าน) แต่ยังไม่ใช่ role "admin" จริง
 // เลยยังถูกจำกัดเมนูผ่าน userMenuPermissions ได้ตามปกติ ส่วน role "province" ที่ระบุจังหวัดมา (เช่น
@@ -67,6 +75,8 @@ const authorizedVenue=viewer.venue&&PROVINCES[authorizedProvince].includes(viewe
 const initialScope=viewer.role==="admin"?{level:"country",province:"กรุงเทพมหานคร",venue:"Siam Social Demo"}:viewer.role==="province"&&!viewer.province?{level:"country",province:"กรุงเทพมหานคร",venue:"Siam Social Demo"}:viewer.role==="province"?{level:"province",province:authorizedProvince,venue:authorizedVenue}:{level:"venue",province:authorizedProvince,venue:authorizedVenue};
 const permissionUsers=viewer.role==="admin"?managedUsers:[viewer];
 let userMenuPermissions=loadUserMenuPermissions(permissionUsers);
+// บัญชีร้านในหน้า Users & Menu Access — สิทธิ์จริงอยู่ใน DB (managedUser.menus) ทับค่าจาก localStorage
+managedUsers.filter(user=>user.storeId).forEach(user=>{userMenuPermissions[user.id]=user.menus||[]});
 // NOTE: ร้านจริงจาก backend ผ่าน /api/stores (แทน PROVINCES mock เฉพาะ dropdown ร้านของ role admin)
 // backend ยังไม่มีฟิลด์จังหวัดผูกร้าน จึงใช้ real store list ได้เฉพาะตอน role==="admin" เท่านั้น
 // ดู loadRealStores() และจุดใช้งานใน populate()
@@ -76,6 +86,55 @@ let realStores=[];
 let realStoresLoaded=false,realStoresFailed=false,realStoreStatsFailed=false,realUserStatsFailed=false;
 let unmounted=false;
 let realtimePollId=null;
+// เมนู "User Partners" — บัญชีร้านจาก /api/partner-users (null = ยังไม่โหลด) โหลดครั้งแรกตอนเปิดหน้า ดู partnerUsersPage()
+let partnerUsers=null,partnerUsersFailed=false,partnerUsersLoading=false;
+// URL แอป NearSip จาก server (NEARSIP_APP_URL) — QR Code ของร้านชี้ไป {partnerAppUrl}/{storeId}/home
+let partnerAppUrl=null;
+async function loadPartnerUsers(){
+  partnerUsersLoading=true;
+  try{
+    const res=await fetch("/api/partner-users");
+    if(unmounted)return;
+    if(!res.ok){partnerUsersFailed=true;return}
+    // เดิม: partnerUsers=(await res.json()).partners||[];partnerUsersFailed=false;
+    const json=await res.json();
+    partnerUsers=json.partners||[];partnerAppUrl=json.appUrl||null;partnerUsersFailed=false;
+  }catch(err){
+    console.warn("Failed to load partner users",err);
+    partnerUsersFailed=true;
+  }finally{
+    partnerUsersLoading=false;
+    if(!unmounted&&state.page==="partnerUsers")render();
+  }
+}
+async function savePartnerUserForm(event){
+  event.preventDefault();
+  const form=event.currentTarget,button=form.querySelector("button[type=submit]");
+  // เดิม: const body={province:form.province.value,username:form.username.value,password:form.password.value};
+  const body={
+    name:form.elements.name.value,locationName:form.locationName.value,latitud:form.latitud.value,longitude:form.longitude.value,
+    radius:form.radius.value,status:form.status.value,
+    province:form.province.value,username:form.username.value,password:form.password.value
+  };
+  button.disabled=true;
+  try{
+    // เดิม: const res=await fetch(`/api/partner-users/${encodeURIComponent(form.dataset.storeId)}`,{method:"PUT",...});
+    // storeId ว่าง = modal โหมดเพิ่มสถานที่ → POST /api/partner-users
+    const isNew=!form.dataset.storeId;
+    const res=await fetch(isNew?"/api/partner-users":`/api/partner-users/${encodeURIComponent(form.dataset.storeId)}`,{method:isNew?"POST":"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const json=await res.json().catch(()=>({}));
+    if(!res.ok){showDashboardToast(json.message||"บันทึกไม่สำเร็จ");return}
+    // เดิม: showDashboardToast("บันทึกบัญชีร้านแล้ว");
+    showDashboardToast(isNew?"เพิ่มสถานที่สำเร็จ":"บันทึกบัญชีร้านแล้ว");
+    state.partnerEditId="";
+    await loadPartnerUsers();
+  }catch(err){
+    console.warn("Failed to save partner user",err);
+    showDashboardToast("บันทึกไม่สำเร็จ");
+  }finally{
+    button.disabled=false;
+  }
+}
 async function loadRealStores(){
   try{
     const res=await fetch("/api/stores");
@@ -348,9 +407,18 @@ const state={
   // คำค้นในหน้า "ผู้ใช้ตอนนี้" (ชื่อ/email) — ส่งเป็น ?q= ไป /api/active-users
   activeUserSearch:"",
   // ปุ่มสลับในหน้า "ผู้ใช้ตอนนี้": "online" = session ยังไม่หมดอายุ · "recent" = login ล่าสุด 10 คน — ส่งเป็น ?view=
-  activeUsersView:"online"
+  activeUsersView:"online",
+  // หน้า "User Partners": store_id ของร้านที่เปิดฟอร์มแก้ไขอยู่ ("" = ไม่ได้แก้)
+  partnerEditId:"",
+  // หน้า "User Partners": store_id ของร้านที่เปิด modal QR Code อยู่ ("" = ปิด)
+  partnerQrId:""
 };
-function canAccessMenu(menuId){return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)}
+// เดิม: function canAccessMenu(menuId){return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)}
+// บัญชีร้าน = เมนูจาก DB (viewer.menus) · บัญชีเดิมใช้ localStorage เหมือนเดิม
+function canAccessMenu(menuId){
+  if(viewer.storeId)return(viewer.menus||[]).includes(menuId);
+  return viewer.role==="admin"||(userMenuPermissions[viewer.id]||[]).includes(menuId)
+}
 function accessibleOverallMenus(){return OVERALL_DASHBOARD_MENUS.filter(menu=>canAccessMenu(menu.id))}
 function ensureAccessibleView(){
   const overallMenus=accessibleOverallMenus(),canViewRealtime=canAccessMenu("realtime");
@@ -402,7 +470,19 @@ function entities(){
   if(state.venue==="ALL")return venueOptions().map(venue=>({province:state.province,venue}));
   return[{province:state.province,venue:state.venue}]
 }
-function scopeName(){if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;if(state.venue==="ALL")return"ร้านพาร์ทเนอร์ทั้งหมด · "+state.province;return state.venue+" · "+state.province}
+// เดิม: function scopeName(){if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;if(state.venue==="ALL")return"ร้านพาร์ทเนอร์ทั้งหมด · "+state.province;return state.venue+" · "+state.province}
+// ตอนใช้ร้านจริง (เงื่อนไขเดียวกับ venueOptions()) — จังหวัดมาจาก set_location.province ของร้าน (/api/stores) แทน
+// state.province (ค่า mock ที่ซ่อนอยู่ = กรุงเทพมหานครเสมอ) · เปลี่ยนแค่ข้อความ ไม่แตะ state.province ที่ตัวเลข mock ใช้
+function scopeName(){
+  if(state.level==="country")return"ประเทศไทย";if(state.level==="province")return"จังหวัด"+state.province;
+  // บัญชีร้าน — ชื่อร้าน + จังหวัดจริงของร้าน (state.province เป็นค่า mock)
+  if(viewer.storeId)return(viewer.venue||state.venue)+" · "+(viewer.province||"ไม่ระบุจังหวัด");
+  const useRealStores=viewer.role!=="owner"&&realStores.length>0;
+  if(state.venue==="ALL")return"ร้านพาร์ทเนอร์ทั้งหมด · "+(useRealStores?"ทุกจังหวัด":state.province);
+  const store=useRealStores?realStores.find(s=>(s.name||s.locationName||s.storeId)===state.venue):null;
+  if(store)return state.venue+" · "+(store.province||"ไม่ระบุจังหวัด");
+  return state.venue+" · "+state.province
+}
 function periodLabel(){return document.querySelector("#periodSelect option:checked")?.textContent||"เดือนนี้"}
 function compareLabel(){return document.querySelector("#compareSelect option:checked")?.textContent||"เดือนก่อน"}
 function change(c,p){return p?((c-p)/p*100):0}
@@ -683,7 +763,8 @@ function execPage(d,p){
   ${/* Top Performer: ใช้ realStoreStats (จาก /api/user-stats วนต่อร้าน) เมื่อมีร้านจริง — เหลือแค่ users/
      newUsers/engagement เพราะเป็น metric เดียวที่ DB รองรับต่อร้านจริง ตัด Repeat/NSC/รายได้ออกเพราะไม่มี
      table ให้ query เลย ถ้ายังไม่มีร้านจริง (ยังโหลดไม่เสร็จ/โหลดไม่สำเร็จ) fallback กลับไปใช้ mock เหมือนเดิม */""}
-  ${card("Top Performer",useRealRank?"Ranking table ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
+  ${card("Top Performer",useRealRank?"Ranking table ต่อร้าน — Repeat/NSC/รายได้ไม่มีข้อมูลจริงรองรับเลยไม่แสดง":"Ranking table เดียว เปลี่ยน Metric ได้ (ยังเป็น mock — ยังไม่มีร้านจริงให้ดึงข้อมูล)",`<div class="metric-toolbar" style="margin-bottom:14px"><div class="field"><label for="topMetricSelect">จัดอันดับตาม</label><select id="topMetricSelect">${topMetricOptions}</select></div></div>${topPerformerTable}`)}
+  ${/* เดิม: <div class="metric-toolbar"> (ไม่มี margin — dropdown ติดตารางเกินไป) · ใส่ inline เฉพาะการ์ดนี้ แบบเดียวกับ toolbar กราฟแนวโน้ม (style="margin-top:12px") ไม่แตะ .metric-toolbar ที่การ์ดอื่นใช้ร่วม */""}
   ${/* เดิม: การ์ด "Feed จากระบบจริง" ดึงจาก /api/feed ตรงๆ — คอมเมนต์ออกตามที่ขอ
   realFeed.length?card("Feed จากระบบจริง","ดึงจาก /api/feed ตรงๆ (ไม่ใช่ mock)",`<div class="stat-list">${realFeed.map(f=>`<div class="stat"><b>${f.imageTitleText||(f.feedType==="Global"?"ประกาศทั่วไป":"ประกาศร้าน "+f.storeId)}</b><p>${f.description||""}</p></div>`).join("")}</div>`):""
   */""}
@@ -1100,6 +1181,8 @@ function adminSettingsPage(){
     </button>`
   }).join("");
   const enabledMenus=userMenuPermissions[selectedUser.id]||[],safeUserId=escapeHtml(selectedUser.id);
+  // บัญชีร้าน: ไม่มีสวิตช์ "User Partners" (PARTNER_ALLOWED_MENUS) · บัญชีเดิมเห็นครบเหมือนเดิม
+  const selectableMenus=selectedUser.storeId?DASHBOARD_MENUS.filter(menu=>PARTNER_ALLOWED_MENUS.includes(menu.id)):DASHBOARD_MENUS;
   return`${hero("Users & Menu Access","ค้นหา เลือก User และกำหนดเมนูที่บัญชีนั้นเข้าใช้งานได้",`${configurableUsers.length} บัญชี`)}
     <div class="permission-section-head"><div><h3>ตั้งค่าสิทธิ์ราย User</h3><p>ค้นหาจากชื่อ Username Role หรือ Scope แล้วเลือกบัญชีที่ต้องการตั้งค่า</p></div></div>
     <div class="permission-manager">
@@ -1116,18 +1199,397 @@ function adminSettingsPage(){
           <h3>${escapeHtml(selectedUser.displayName)}</h3><p>${escapeHtml(selectedUser.scope)}</p>
           <!-- เพิ่มตามที่ขอ — ให้ admin สูงสุดเห็น password ของ user (mock account เท่านั้น) -->
           <p class="permission-user-password">User: <code>${escapeHtml(selectedUser.username)}</code></p>
-          <p class="permission-user-password">Pass: <code>${escapeHtml(selectedUser.password)}</code></p>
+          ${/* เดิม: <p class="permission-user-password">Pass: <code>${escapeHtml(selectedUser.password)}</code></p>
+             บัญชีร้าน: รหัสเป็น bcrypt ดูย้อนหลังไม่ได้ → แสดงตั้งแล้ว/ยังไม่ตั้ง · บัญชีเดิมแสดงเหมือนเดิม
+             เดิม: <strong>${enabledMenus.length}/${DASHBOARD_MENUS.length} เมนู</strong> */""}
+          <p class="permission-user-password">Pass: <code>${selectedUser.storeId?(selectedUser.hasPassword?"ตั้งแล้ว (เปลี่ยนได้ที่เมนู User Partners)":"ยังไม่ตั้ง"):escapeHtml(selectedUser.password)}</code></p>
         </div>
-        <strong>${enabledMenus.length}/${DASHBOARD_MENUS.length} เมนู</strong>
+        <strong>${enabledMenus.length}/${selectableMenus.length} เมนู</strong>
       </div>
       <div class="permission-list">
-        ${DASHBOARD_MENUS.map(menu=>`<label class="permission-option" for="permission-${safeUserId}-${menu.id}">
+        ${/* เดิม: ${DASHBOARD_MENUS.map(menu=>... */""}
+        ${selectableMenus.map(menu=>`<label class="permission-option" for="permission-${safeUserId}-${menu.id}">
           <span><b>${menu.label}</b><small>${menu.mode==="realtime"?"โหมด Real-time":"เมนู Overall"}</small></span>
           <input id="permission-${safeUserId}-${menu.id}" type="checkbox" role="switch" data-menu-permission data-user-id="${safeUserId}" data-menu-id="${menu.id}" ${enabledMenus.includes(menu.id)?"checked":""}>
         </label>`).join("")}
       </div>
       </section>
     </div>`
+}
+function partnerUsersPage(){
+  if(partnerUsers===null&&!partnerUsersLoading&&!partnerUsersFailed)loadPartnerUsers();
+  const title="User Partners",desc="บัญชี Username / Password ของร้านพาร์ทเนอร์ (set_location)";
+  if(partnerUsersFailed&&!partnerUsers)return`${hero(title,desc)}<div class="empty-state"><h3>โหลดบัญชีร้านไม่สำเร็จ</h3><p><button type="button" class="export" id="retryPartnerUsers">ลองใหม่</button></p></div>`;
+  if(!partnerUsers)return`${hero(title,desc)}<div class="empty-state"><h3>กำลังโหลด…</h3></div>`;
+  if(!partnerUsers.length)return`${hero(title,desc,"0 ร้าน")}<div class="empty-state"><h3>ยังไม่มีร้านในระบบ</h3></div>`;
+  // แก้ได้เฉพาะ admin (server เช็คซ้ำใน savePartnerUser) — role อื่นที่ได้สิทธิ์เมนูนี้ดูได้อย่างเดียว
+  const canEdit=viewer.role==="admin";
+  const passwordTag=p=>p.hasPassword?`<span class="tag good">ตั้งแล้ว</span>`:`<span class="tag warn">ยังไม่ตั้ง</span>`;
+  /* เดิม (รอบแรก): ตาราง 4 คอลัมน์ + ฟอร์มแก้ไขแบบ inline เหนือตาราง — แทนด้วยตารางแบบหน้า Location (nearsip-internal) + modal ตามที่ขอ
+  const editButton=p=>canEdit?`<button type="button" class="tag info" data-partner-edit="${escapeHtml(p.storeId)}">แก้ไข</button>`:"";
+  const headers=["ร้าน","จังหวัด","Username","Password",...(canEdit?[""]:[])];
+  const rows=partnerUsers.map(p=>[`<strong>${escapeHtml(p.name||p.storeId)}</strong><br><small>${escapeHtml(p.storeId)}</small>`,escapeHtml(p.province||"—"),p.username?`<code>${escapeHtml(p.username)}</code>`:"—",passwordTag(p),...(canEdit?[editButton(p)]:[])]);
+  const cards=partnerUsers.map(p=>mobileCard(escapeHtml(p.name||p.storeId),escapeHtml(p.province||"—"),p.username?escapeHtml(p.username):"—",`${passwordTag(p)} ${editButton(p)}`,[["Store ID",escapeHtml(p.storeId)]]));
+  const editing=canEdit?partnerUsers.find(p=>p.storeId===state.partnerEditId):null;
+  const form=editing?card(`แก้ไขบัญชี: ${escapeHtml(editing.name||editing.storeId)}`,"เว้น Password ว่างไว้ = ใช้รหัสเดิม · Password ถูกเข้ารหัส (bcrypt) ก่อนบันทึก",
+    `<form id="partnerUserForm" data-store-id="${escapeHtml(editing.storeId)}" autocomplete="off" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
+      <div class="field"><label for="partnerProvince">จังหวัด</label><input id="partnerProvince" name="province" maxlength="255" value="${escapeHtml(editing.province||"")}"></div>
+      <div class="field"><label for="partnerUsername">Username</label><input id="partnerUsername" name="username" maxlength="255" value="${escapeHtml(editing.username||"")}" placeholder="a-z 0-9 . _ -"></div>
+      <div class="field"><label for="partnerPassword">Password ใหม่</label><input id="partnerPassword" name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="${editing.hasPassword?"เว้นว่าง = ใช้รหัสเดิม":"อย่างน้อย 8 ตัวอักษร"}"></div>
+      <div style="display:flex;gap:8px"><button type="submit" class="export">บันทึก</button><button type="button" class="tag" id="cancelPartnerEdit">ยกเลิก</button></div>
+    </form>`):"";
+  return`${hero(title,desc,`${partnerUsers.length} ร้าน`)}${form}${desktopAndMobileTable(headers,rows,cards)}`
+  */
+  const statusTag=p=>p.status==="ACTIVE"?`<span class="tag good">ACTIVE</span>`:`<span class="tag danger">INACTIVE</span>`;
+  const coord=n=>Number(n).toFixed(6);
+  const editButton=p=>canEdit?`<button type="button" class="partner-icon-btn" data-partner-edit="${escapeHtml(p.storeId)}" title="แก้ไข" aria-label="แก้ไข ${escapeHtml(p.name||p.storeId)}">${PENCIL_ICON}</button>`:"";
+  // QR Code ดูได้ทุก role ที่เข้าเมนูนี้ได้ (ไม่ใช่แค่ admin เหมือนปุ่มแก้ไข)
+  const qrButton=p=>`<button type="button" class="partner-icon-btn" data-partner-qr="${escapeHtml(p.storeId)}" title="QR Code" aria-label="QR Code ${escapeHtml(p.name||p.storeId)}">${QR_ICON}</button>`;
+  // เดิม: headers ไม่มี "QR Code" / rows ไม่มี qrButton(p) / mobile card status = `${passwordTag(p)} ${editButton(p)}`
+  // เดิม: ...,"Password","QR Code",... — ห่อ span ไว้ให้ CSS จัดหัวคอลัมน์กึ่งกลาง (ดู .partner-col-center ใน globals.css)
+  const headers=["Store ID","ชื่อ","Location Name","ละติจูด","ลองจิจูด","รัศมี (ม.)","สถานะ","จังหวัด","Username","Password",`<span class="partner-col-center">QR Code</span>`,...(canEdit?["จัดการ"]:[])];
+  const rows=partnerUsers.map(p=>[
+    `<code class="partner-id" title="${escapeHtml(p.storeId)}">${escapeHtml(p.storeId)}</code>`,
+    `<strong>${escapeHtml(p.name||"—")}</strong>`,escapeHtml(p.locationName||"—"),
+    coord(p.latitud),coord(p.longitude),fmt(p.radius),statusTag(p),
+    escapeHtml(p.province||"—"),p.username?`<code>${escapeHtml(p.username)}</code>`:"—",passwordTag(p),
+    qrButton(p),
+    ...(canEdit?[editButton(p)]:[])
+  ]);
+  const cards=partnerUsers.map(p=>mobileCard(escapeHtml(p.name||p.storeId),escapeHtml(p.locationName||"—"),statusTag(p),`${passwordTag(p)} ${qrButton(p)} ${editButton(p)}`,
+    [["Store ID",escapeHtml(p.storeId)],["ละติจูด",coord(p.latitud)],["ลองจิจูด",coord(p.longitude)],["รัศมี (ม.)",fmt(p.radius)],["จังหวัด",escapeHtml(p.province||"—")],["Username",escapeHtml(p.username||"—")]]));
+  const active=partnerUsers.filter(p=>p.status==="ACTIVE").length,withAccount=partnerUsers.filter(p=>p.username&&p.hasPassword).length;
+  const kpis=`<div class="grid partner-kpis">
+    ${kpi("สถานที่ทั้งหมด",fmt(partnerUsers.length),"","ร้านทั้งหมดในระบบ","neutral")}
+    ${kpi("ACTIVE",fmt(active),"","เปิดใช้งานอยู่","good")}
+    ${kpi("INACTIVE",fmt(partnerUsers.length-active),"","ปิดใช้งาน","neutral")}
+    ${kpi("ตั้งบัญชีแล้ว",fmt(withAccount),"","มีทั้ง Username และ Password","neutral")}
+  </div>`;
+  // เดิม: const editing=canEdit?partnerUsers.find(p=>p.storeId===state.partnerEditId):null;
+  // partnerEditId = NEW_PARTNER_ID → modal โหมด "เพิ่มสถานที่" (ร้านว่าง, ไม่มี storeId)
+  const editing=canEdit?(state.partnerEditId===NEW_PARTNER_ID?NEW_PARTNER:partnerUsers.find(p=>p.storeId===state.partnerEditId)):null;
+  const qrStore=partnerUsers.find(p=>p.storeId===state.partnerQrId);
+  // ปุ่มเพิ่มสถานที่ (admin) ข้างป้ายจำนวนร้านใน hero — ใช้ data-partner-edit ตัวเดียวกับปุ่มแก้ไข (เปิด modal เดิม)
+  const heroNote=`<span class="partner-count">${partnerUsers.length} ร้าน</span>${canEdit?`<button type="button" class="partner-add-btn" data-partner-edit="${NEW_PARTNER_ID}"><span aria-hidden="true">+</span> เพิ่มสถานที่</button>`:""}`;
+  // เดิม: ...card("รายการสถานที่","ข้อมูลสถานที่ + บัญชีร้าน · กดไอคอนดินสอเพื่อแก้ไข",...)}${editing?partnerEditModal(editing):""}`
+  // เดิม: return`${hero(title,desc,`${partnerUsers.length} ร้าน`)}${kpis}...
+  return`${hero(title,desc,heroNote)}${kpis}${card("รายการสถานที่","ข้อมูลสถานที่ + บัญชีร้าน · กดไอคอน QR เพื่อดู/ดาวน์โหลด QR Code · กดไอคอนดินสอเพื่อแก้ไข",desktopAndMobileTable(headers,rows,cards))}${editing?partnerEditModal(editing):""}${qrStore?partnerQrModal(qrStore):""}`
+}
+// modal "เพิ่มสถานที่" ใช้ partnerEditModal() ตัวเดียวกับแก้ไข โดยส่งร้านว่างนี้เข้าไป (storeId "" = สร้างใหม่)
+const NEW_PARTNER_ID="__new__";
+const NEW_PARTNER={storeId:"",name:"",locationName:"",latitud:"",longitude:"",radius:50,status:"ACTIVE",province:null,username:null,hasPassword:false};
+const QR_ICON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>`;
+// ลิงก์ที่ QR พาไป — หน้า home ของร้านในแอป NearSip (nearsip/frontend route [store_id]/home)
+function partnerStoreUrl(storeId){return partnerAppUrl?`${partnerAppUrl}/${encodeURIComponent(storeId)}/home`:null}
+// modal QR Code — ใช้ class/ปุ่มปิด (data-partner-close) ชุดเดียวกับ modal แก้ไข · รูป QR สร้างหลัง render ใน renderPartnerQr()
+function partnerQrModal(p){
+  const url=partnerStoreUrl(p.storeId),v=value=>escapeHtml(value??"");
+  // เดิม: ต่อท้ายรูป QR ด้วย <a class="partner-qr-link" href="${v(url)}" target="_blank" rel="noopener">${v(url)}</a> — เอาลิงก์ออกตามที่ขอ
+  const body=url?`<div class="partner-qr"><img id="partnerQrImg" alt="QR Code ${v(p.name||p.storeId)}" width="240" height="240"></div>`
+    :`<div class="empty-state"><h3>ยังไม่ได้ตั้งค่า URL ของแอป</h3><p>ตั้ง NEARSIP_APP_URL ใน .env ของ dashboard แล้วรีสตาร์ท</p></div>`;
+  return`<div class="partner-modal-backdrop" id="partnerModalBackdrop">
+    <div class="partner-modal partner-qr-modal" id="partnerModal" role="dialog" aria-modal="true" aria-labelledby="partnerModalTitle" tabindex="-1">
+      <div class="partner-modal-head">
+        <div><h3 id="partnerModalTitle">QR Code · ${v(p.name||p.storeId)}</h3><p><code>${v(p.storeId)}</code></p></div>
+        <button type="button" class="partner-icon-btn" data-partner-close aria-label="ปิด">✕</button>
+      </div>
+      <section class="partner-modal-section">${body}</section>
+      <div class="partner-modal-foot">
+        
+        ${/* เดิม: มีปุ่ม <button ... id="partnerQrCopy">คัดลอกลิงก์</button> ก่อนปุ่มดาวน์โหลด — เอาออกพร้อมลิงก์ตามที่ขอ */""}
+        ${url?`<a class="export" id="partnerQrDownload" download="qr-${v(p.storeId)}.png" aria-disabled="true">ดาวน์โหลด PNG</a>`:""}
+        <button type="button" class="partner-modal-cancel" data-partner-close>ปิด</button>
+      </div>
+    </div>
+  </div>`
+}
+async function renderPartnerQr(storeId){
+  const url=partnerStoreUrl(storeId),img=document.getElementById("partnerQrImg"),download=document.getElementById("partnerQrDownload");
+  if(!url||!img)return;
+  try{
+    // 640px — คมพอสำหรับพิมพ์ ใช้รูปเดียวกันทั้งแสดงผลและดาวน์โหลด
+    const dataUrl=await QRCode.toDataURL(url,{width:640,margin:2,errorCorrectionLevel:"M"});
+    if(state.partnerQrId!==storeId)return;
+    img.src=dataUrl;
+    if(download){download.href=dataUrl;download.removeAttribute("aria-disabled")}
+  }catch(err){
+    console.warn("Failed to generate QR code",err);
+    showDashboardToast("สร้าง QR Code ไม่สำเร็จ");
+  }
+}
+// dropdown จังหวัดแบบ Select2 ใน modal แก้ไข — ผูก event กับ element ใน modal เท่านั้น (render ใหม่ = ทิ้งไปพร้อม modal)
+// ↑↓ เลื่อน · Enter เลือก · Esc ปิดแค่ dropdown (ไม่ปิด modal) · คลิกนอก dropdown = ปิด
+function initPartnerProvinceSelect(){
+  const root=document.getElementById("partnerProvinceSelect");
+  if(!root)return;
+  const hidden=root.querySelector("#partnerProvince"),toggle=root.querySelector(".partner-select-toggle"),text=root.querySelector("#partnerProvinceText");
+  const panel=root.querySelector(".partner-select-panel"),search=root.querySelector(".partner-select-search"),empty=root.querySelector(".partner-select-empty");
+  const options=[...root.querySelectorAll("[role=option]")];
+  const list=root.querySelector(".partner-select-list"),modal=document.getElementById("partnerModal");
+  let activeIndex=-1;
+  const visible=()=>options.filter(o=>!o.hidden);
+  // เดิม: option?.scrollIntoView({block:"nearest"}) — เลื่อน modal ทั้งอันตามไปด้วย (รายการกระโดด) → เลื่อนเฉพาะในลิสต์
+  const keepInView=option=>{
+    if(!option)return;
+    if(option.offsetTop<list.scrollTop)list.scrollTop=option.offsetTop;
+    else if(option.offsetTop+option.offsetHeight>list.scrollTop+list.clientHeight)list.scrollTop=option.offsetTop+option.offsetHeight-list.clientHeight;
+  };
+  const setActive=(option,scroll=true)=>{
+    options.forEach(o=>o.classList.toggle("active",o===option));
+    activeIndex=visible().indexOf(option);
+    if(scroll)keepInView(option);
+  };
+  // panel เป็น position:fixed ลอยเหนือ modal (เดิม absolute → โดนกรอบ modal ตัด + scrollbar ซ้อน) · ที่ด้านล่างไม่พอ = เปิดขึ้นบน
+  const place=()=>{
+    const rect=toggle.getBoundingClientRect(),height=panel.offsetHeight,below=window.innerHeight-rect.bottom;
+    const up=below<height+12&&rect.top>below;
+    panel.style.left=`${rect.left}px`;panel.style.width=`${rect.width}px`;
+    panel.style.top=`${up?rect.top-height-6:rect.bottom+6}px`;
+    panel.classList.toggle("up",up);
+  };
+  const filter=()=>{
+    const q=search.value.trim().toLowerCase();
+    options.forEach(o=>{o.hidden=!!q&&!o.textContent.toLowerCase().includes(q)});
+    empty.hidden=visible().length>0;
+    if(!q)list.scrollTop=0;
+    setActive(visible().find(o=>o.getAttribute("aria-selected")==="true")||visible()[0]);
+    if(!panel.hidden)place();
+  };
+  const onViewportChange=()=>close(false);
+  const close=(focusToggle=true)=>{
+    if(panel.hidden)return;
+    panel.hidden=true;toggle.setAttribute("aria-expanded","false");root.classList.remove("open");
+    modal?.removeEventListener("scroll",onViewportChange);window.removeEventListener("resize",onViewportChange);
+    if(focusToggle)toggle.focus();
+  };
+  const open=()=>{
+    panel.hidden=false;toggle.setAttribute("aria-expanded","true");root.classList.add("open");
+    search.value="";filter();place();search.focus({preventScroll:true});
+    // panel ลอยตามตำแหน่งปุ่ม — modal เลื่อน/จอเปลี่ยนขนาด ให้ปิดไปเลยแบบ Select2
+    modal?.addEventListener("scroll",onViewportChange);window.addEventListener("resize",onViewportChange);
+  };
+  const choose=option=>{
+    if(!option)return;
+    const value=option.dataset.value;
+    hidden.value=value;
+    text.textContent=value||"— ไม่ระบุ —";text.classList.toggle("is-placeholder",!value);
+    options.forEach(o=>o.setAttribute("aria-selected",String(o===option)));
+    close();
+  };
+  toggle.onclick=()=>panel.hidden?open():close();
+  toggle.onkeydown=e=>{if(e.key==="ArrowDown"&&panel.hidden){e.preventDefault();open()}};
+  search.oninput=filter;
+  search.onkeydown=e=>{
+    const list=visible();
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+      e.preventDefault();
+      if(!list.length)return;
+      const next=e.key==="ArrowDown"?Math.min(activeIndex+1,list.length-1):Math.max(activeIndex-1,0);
+      setActive(list[next]);
+    }else if(e.key==="Enter"){
+      e.preventDefault();choose(list[activeIndex]);
+    }else if(e.key==="Escape"){
+      e.preventDefault();e.stopPropagation();close();
+    }else if(e.key==="Tab"){
+      close(false);
+    }
+  };
+  options.forEach(o=>{
+    o.onmousedown=e=>e.preventDefault();
+    o.onclick=()=>choose(o);
+    // เดิม: setActive(o) — hover ไม่ต้องเลื่อนลิสต์ (กันรายการกระโดดตอนเมาส์ค้างอยู่ตรงที่ panel เปิด)
+    o.onmousemove=()=>{if(!o.classList.contains("active"))setActive(o,false)};
+  });
+  modal?.addEventListener("mousedown",e=>{if(!root.contains(e.target))close(false)});
+}
+const EYE_ICON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_ICON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`;
+// สุ่มรหัส 12 ตัว (crypto.getRandomValues) — มีพิมพ์ใหญ่/เล็ก/ตัวเลข/สัญลักษณ์อย่างละ ≥1 · ตัดตัวที่สับสนง่าย (0 O 1 l I)
+function generatePartnerPassword(length=12){
+  const sets=["ABCDEFGHJKLMNPQRSTUVWXYZ","abcdefghijkmnopqrstuvwxyz","23456789","!@#$%&*?"],all=sets.join("");
+  const pick=chars=>{const n=new Uint32Array(1);crypto.getRandomValues(n);return chars[n[0]%chars.length]};
+  const chars=[...sets.map(pick),...Array.from({length:length-sets.length},()=>pick(all))];
+  // สลับตำแหน่ง (Fisher–Yates) ไม่ให้ 4 ตัวแรกเรียงตามกลุ่มเสมอ
+  for(let i=chars.length-1;i>0;i--){const n=new Uint32Array(1);crypto.getRandomValues(n);const j=n[0]%(i+1);[chars[i],chars[j]]=[chars[j],chars[i]]}
+  return chars.join("")
+}
+// แผนที่ปักหมุดใน modal เพิ่ม/แก้ไขสถานที่ — Leaflet โหลดแบบ dynamic import (ใช้ window ตอน import → import ตรงๆ จะพังตอน SSR)
+// ซิงก์สองทาง: คลิก/ลากหมุด → เขียนช่องละติจูด/ลองจิจูด (ทศนิยม 6 ตำแหน่ง) · พิมพ์ช่อง → ย้ายหมุด · รัศมี → วงกลม
+// render() สร้าง modal ใหม่ทุกครั้ง → ลบแผนที่เก่า (partnerMap.remove()) ก่อนสร้างใหม่ กัน memory รั่ว
+let partnerMap=null;
+const PARTNER_MAP_DEFAULT_CENTER=[13.7563,100.5018]; // กรุงเทพฯ — ร้านใหม่ที่ยังไม่มีพิกัด
+async function initPartnerMap(){
+  if(partnerMap){partnerMap.remove();partnerMap=null}
+  const el=document.getElementById("partnerMap");
+  if(!el)return;
+  const L=(await import("leaflet")).default;
+  // modal ถูกปิด/วาดใหม่ระหว่างรอ import → element นี้ไม่อยู่ใน DOM แล้ว
+  if(!el.isConnected||partnerMap)return;
+  const latInput=document.getElementById("partnerLat"),lngInput=document.getElementById("partnerLng"),radiusInput=document.getElementById("partnerRadius");
+  const readLatLng=()=>{
+    const lat=parseFloat(latInput.value),lng=parseFloat(lngInput.value);
+    return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180?[lat,lng]:null;
+  };
+  const readRadius=()=>{const r=parseFloat(radiusInput.value);return Number.isFinite(r)&&r>0?r:0};
+  const start=readLatLng();
+  const map=L.map(el,{scrollWheelZoom:false}).setView(start||PARTNER_MAP_DEFAULT_CENTER,start?16:11);
+  partnerMap=map;
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'}).addTo(map);
+  // หมุดเป็น divIcon (CSS ล้วน) — ไม่ใช้รูปไอคอนของ Leaflet ที่ path พังเมื่อผ่าน bundler
+  const icon=L.divIcon({className:"partner-map-pin",html:"<span></span>",iconSize:[28,28],iconAnchor:[14,28]});
+  let marker=null,circle=null;
+  const draw=(latlng,{pan=false}={})=>{
+    if(!marker){
+      marker=L.marker(latlng,{icon,draggable:true,keyboard:false}).addTo(map);
+      marker.on("drag",()=>{const p=marker.getLatLng();circle?.setLatLng(p)});
+      // วางหมุดซ้ำที่ค่าปัดทศนิยมแล้ว → หมุดกับตัวเลขในช่องตรงกันเป๊ะ
+      marker.on("dragend",()=>{const p=marker.getLatLng();writeInputs(p.lat,p.lng);draw(readLatLng())});
+      // เดิม: {radius:readRadius(),color:"#16C6D9",weight:2,fillOpacity:.12} — ขอบหนา/เข้มขึ้นให้เห็นวงชัดบนแผนที่
+      circle=L.circle(latlng,{radius:readRadius(),color:"#0B9FB0",weight:3,fillColor:"#16C6D9",fillOpacity:.18}).addTo(map);
+    }else{marker.setLatLng(latlng);circle.setLatLng(latlng)}
+    if(pan)map.panTo(latlng);
+  };
+  const writeInputs=(lat,lng)=>{latInput.value=lat.toFixed(6);lngInput.value=lng.toFixed(6)};
+  // ซูมให้เห็นวงรัศมีทั้งวง (รัศมีเล็กมาก → ซูมได้ลึกสุด 18 · ใหญ่มาก → ซูมออกจนเห็นทั้งวง)
+  const fitCircle=()=>{if(circle&&readRadius()>0)map.fitBounds(circle.getBounds(),{padding:[24,24],maxZoom:18})};
+  // เดิม: if(start)draw(start);
+  if(start){draw(start);fitCircle()}
+  map.on("click",e=>{writeInputs(e.latlng.lat,e.latlng.lng);draw([parseFloat(latInput.value),parseFloat(lngInput.value)])});
+  // พิมพ์ค่าเอง → หมุดย้ายตาม (ค่าผิด/ว่าง = หมุดอยู่ที่เดิม)
+  const onType=()=>{const latlng=readLatLng();if(latlng)draw(latlng,{pan:true})};
+  latInput.addEventListener("input",onType);lngInput.addEventListener("input",onType);
+  // เดิม: radiusInput.addEventListener("input",()=>circle?.setRadius(readRadius()));
+  // แก้รัศมี → วงเปลี่ยนทันที แล้วซูมพอดีวงเมื่อหยุดพิมพ์ 400ms (กันแผนที่กระตุกทุกตัวอักษร)
+  let fitTimer=null;
+  radiusInput.addEventListener("input",()=>{
+    circle?.setRadius(readRadius());
+    clearTimeout(fitTimer);fitTimer=setTimeout(()=>{if(partnerMap===map)fitCircle()},400);
+  });
+  // ปุ่มขยายแผนที่เต็มจอ (มุมขวาบน) — สลับ class .is-expanded บนกล่องเดิม หมุด/ช่องพิกัดยังซิงก์เหมือนเดิม
+  // ขยายแล้วเปิดซูมด้วยล้อเมาส์ · Esc = ย่อกลับ (ไม่ปิด modal)
+  const expandControl=L.control({position:"topright"});
+  expandControl.onAdd=()=>{
+    const button=L.DomUtil.create("button","partner-map-expand");
+    button.type="button";
+    L.DomEvent.disableClickPropagation(button);
+    button.onclick=()=>setExpanded(!el.classList.contains("is-expanded"));
+    return button;
+  };
+  expandControl.addTo(map);
+  const expandButton=el.querySelector(".partner-map-expand");
+  const setExpanded=expanded=>{
+    const center=map.getCenter();
+    el.classList.toggle("is-expanded",expanded);
+    // Leaflet ใส่ inline style position:relative ให้กล่องตอนสร้าง → ทับ position:fixed ของ .is-expanded (กดแล้วแผนที่ยุบเป็นเส้น)
+    el.style.position=expanded?"fixed":"relative";
+    expandButton.textContent=expanded?"✕ ย่อแผนที่":"⤢ ขยายแผนที่";
+    expandButton.setAttribute("aria-label",expanded?"ย่อแผนที่":"ขยายแผนที่เต็มจอ");
+    expanded?map.scrollWheelZoom.enable():map.scrollWheelZoom.disable();
+    map.invalidateSize();map.setView(center);
+  };
+  setExpanded(false);
+  el.addEventListener("keydown",e=>{if(e.key==="Escape"&&el.classList.contains("is-expanded")){e.stopPropagation();setExpanded(false)}});
+  // modal เพิ่งแสดง — ให้ Leaflet วัดขนาดกล่องใหม่ กันแผนที่แสดงไม่เต็ม
+  // เดิม: setTimeout(()=>{if(partnerMap===map)map.invalidateSize()},0); — ซูมพอดีวงซ้ำหลังวัดขนาดจริง
+  setTimeout(()=>{if(partnerMap===map){map.invalidateSize();fitCircle()}},0);
+}
+// username แนะนำ {ชื่อร้าน}.{ตัวย่อจังหวัด} เช่น "Ad Lib Hotel" + ขอนแก่น → adlibhotel.kkn
+// ชื่อร้านไม่มีตัวอักษรอังกฤษ (เช่นชื่อไทยล้วน) → ใช้ "store" · ซ้ำกับร้านอื่น → ต่อเลข (adlibhotel2.kkn)
+function suggestPartnerUsername(storeId,name,province){
+  const base=(name||"").normalize("NFKD").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,15)||"store";
+  const code=THAI_PROVINCE_CODES[province]||"";
+  const taken=new Set((partnerUsers||[]).filter(p=>p.storeId!==storeId&&p.username).map(p=>p.username.toLowerCase()));
+  for(let n=1;;n++){
+    const candidate=`${base}${n>1?n:""}${code?`.${code}`:""}`;
+    if(!taken.has(candidate))return candidate;
+  }
+}
+// ปุ่ม 👁 แสดง/ซ่อน + ปุ่ม "สุ่ม" ของช่อง Password ใน modal แก้ไข
+function initPartnerPasswordTools(){
+  // ปุ่ม "แนะนำ" ของช่อง Username — อ่านชื่อร้าน/จังหวัดจากค่าที่กรอกอยู่ใน modal ตอนกด
+  const usernameInput=document.getElementById("partnerUsername"),suggest=document.getElementById("partnerUsernameSuggest");
+  if(usernameInput&&suggest)suggest.onclick=()=>{
+    const form=document.getElementById("partnerUserForm");
+    usernameInput.value=suggestPartnerUsername(form.dataset.storeId,form.elements.name.value,form.province.value);
+    usernameInput.focus();usernameInput.select();
+    if(!form.province.value)showDashboardToast("ยังไม่ได้เลือกจังหวัด — username จะไม่มีตัวย่อจังหวัด");
+  };
+  const input=document.getElementById("partnerPassword"),toggle=document.getElementById("partnerPasswordToggle"),generate=document.getElementById("partnerPasswordGenerate");
+  if(!input||!toggle||!generate)return;
+  const setVisible=show=>{
+    input.type=show?"text":"password";
+    toggle.setAttribute("aria-pressed",String(show));toggle.setAttribute("aria-label",show?"ซ่อนรหัสผ่าน":"แสดงรหัสผ่าน");
+    toggle.innerHTML=show?EYE_OFF_ICON:EYE_ICON;
+  };
+  toggle.onclick=()=>setVisible(input.type==="password");
+  // สุ่มแล้วแสดงรหัสทันที ให้ admin จด/ส่งให้ร้านก่อนกดบันทึก
+  generate.onclick=()=>{input.value=generatePartnerPassword();setVisible(true);input.focus();input.select()};
+}
+const PENCIL_ICON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+// modal แก้ไขทุกช่อง — ข้อมูลสถานที่ส่งต่อ backend PUT /api/set-location, บัญชีร้านเขียน DB (ดู savePartnerUser)
+function partnerEditModal(p){
+  const v=value=>escapeHtml(value??"");
+  return`<div class="partner-modal-backdrop" id="partnerModalBackdrop">
+    <div class="partner-modal" id="partnerModal" role="dialog" aria-modal="true" aria-labelledby="partnerModalTitle" tabindex="-1">
+      <div class="partner-modal-head">
+        ${/* เดิม: <div><h3 id="partnerModalTitle">แก้ไขสถานที่</h3><p><code>${v(p.storeId)}</code></p></div> — เพิ่มโหมด "เพิ่มสถานที่" (storeId ว่าง) */""}
+        <div><h3 id="partnerModalTitle">${p.storeId?"แก้ไขสถานที่":"เพิ่มสถานที่"}</h3><p>${p.storeId?`<code>${v(p.storeId)}</code>`:"Store ID จะถูกสร้างให้อัตโนมัติหลังบันทึก"}</p></div>
+        <button type="button" class="partner-icon-btn" data-partner-close aria-label="ปิด">✕</button>
+      </div>
+      <form id="partnerUserForm" data-store-id="${v(p.storeId)}" autocomplete="off">
+        <section class="partner-modal-section"><h4>ข้อมูลสถานที่</h4><div class="partner-modal-grid">
+          <div class="field"><label for="partnerName">ชื่อ</label><input id="partnerName" name="name" required maxlength="255" value="${v(p.name)}"></div>
+          <div class="field"><label for="partnerLocationName">Location Name</label><input id="partnerLocationName" name="locationName" required maxlength="255" value="${v(p.locationName)}"></div>
+          <div class="field"><label for="partnerLat">ละติจูด</label><input id="partnerLat" name="latitud" type="number" step="any" min="-90" max="90" required value="${v(p.latitud)}"></div>
+          <div class="field"><label for="partnerLng">ลองจิจูด</label><input id="partnerLng" name="longitude" type="number" step="any" min="-180" max="180" required value="${v(p.longitude)}"></div>
+          ${/* แผนที่ปักหมุด (Leaflet + OpenStreetMap) — ช่องละติจูด/ลองจิจูดกับหมุดซิงก์กันสองทาง ดู initPartnerMap() */""}
+          <div class="field span-2"><div id="partnerMap" class="partner-map" role="application" aria-label="แผนที่ — คลิกหรือลากหมุดเพื่อกำหนดตำแหน่งร้าน"></div><small>คลิกบนแผนที่หรือลากหมุดเพื่อกำหนดตำแหน่ง · พิมพ์ละติจูด/ลองจิจูดเองได้ หมุดจะย้ายตาม · วงกลม = รัศมี</small></div>
+          <div class="field"><label for="partnerRadius">รัศมี (ม.)</label><input id="partnerRadius" name="radius" type="number" step="1" min="1" required value="${v(p.radius)}"></div>
+          <div class="field"><label for="partnerStatus">สถานะ</label><select id="partnerStatus" name="status">${["ACTIVE","INACTIVE"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+        </div></section>
+        <section class="partner-modal-section"><h4>บัญชีร้าน</h4><div class="partner-modal-grid">
+          ${/* เดิม: <input id="partnerProvince" name="province" maxlength="255" value="${v(p.province)}"> — พิมพ์อิสระ
+             ตอนนี้: พิมพ์ค้นหา + เลือกจาก 77 จังหวัด (datalist) · server ตรวจซ้ำว่าต้องอยู่ใน THAI_PROVINCES */""}
+          ${/* เดิม (datalist — ไม่ใช่ select ตามที่ต้องการ):
+          <div class="field span-2"><label for="partnerProvince">จังหวัด</label><input id="partnerProvince" name="province" list="partnerProvinceList" maxlength="255" autocomplete="off" placeholder="พิมพ์เพื่อค้นหาจังหวัด" value="${v(p.province)}">
+            <datalist id="partnerProvinceList">${THAI_PROVINCES.map(name=>`<option value="${name}"></option>`).join("")}</datalist></div>
+          ตอนนี้: dropdown แบบ Select2 (ปุ่ม select + ช่องค้นหาใน panel) ค่าเก็บใน hidden input name="province" — ดู initPartnerProvinceSelect() */""}
+          <div class="field span-2"><label id="partnerProvinceLabel">จังหวัด</label>
+            <div class="partner-select" id="partnerProvinceSelect">
+              <input type="hidden" id="partnerProvince" name="province" value="${v(p.province)}">
+              <button type="button" class="partner-select-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="partnerProvinceListbox" aria-labelledby="partnerProvinceLabel partnerProvinceText"><span id="partnerProvinceText" class="${p.province?"":"is-placeholder"}">${p.province?v(p.province):"— ไม่ระบุ —"}</span></button>
+              <div class="partner-select-panel" hidden>
+                <input type="search" class="partner-select-search" placeholder="ค้นหาจังหวัด" autocomplete="off" aria-label="ค้นหาจังหวัด" aria-controls="partnerProvinceListbox">
+                <ul class="partner-select-list" id="partnerProvinceListbox" role="listbox" aria-labelledby="partnerProvinceLabel">
+                  ${["",...THAI_PROVINCES].map(name=>`<li role="option" data-value="${name}" aria-selected="${(p.province||"")===name}">${name||"— ไม่ระบุ —"}</li>`).join("")}
+                </ul>
+                <div class="partner-select-empty" hidden>ไม่พบจังหวัด</div>
+              </div>
+            </div>
+          </div>
+          ${/* เดิม: <div class="field"><label for="partnerUsername">Username</label><input id="partnerUsername" ...></div>
+             ตอนนี้: เพิ่มปุ่ม "แนะนำ" (ร้าน.จังหวัด) — ใช้ class แถวช่อง+ปุ่มชุดเดียวกับช่อง Password (.partner-password*) ไม่สร้าง CSS ซ้ำ */""}
+          <div class="field"><label for="partnerUsername">Username</label>
+            <div class="partner-password">
+              <input id="partnerUsername" name="username" maxlength="255" value="${v(p.username)}" placeholder="เช่น adlib.kkn">
+              <button type="button" class="partner-password-btn partner-password-gen" id="partnerUsernameSuggest" title="แนะนำ username จากชื่อร้าน + จังหวัด">แนะนำ</button>
+            </div>
+          </div>
+          ${/* เดิม: <div class="field"><label for="partnerPassword">Password ใหม่</label><input id="partnerPassword" ...></div>
+             ตอนนี้: ห่อ .partner-password + ปุ่ม 👁 แสดง/ซ่อน และปุ่ม "สุ่ม" — ดู initPartnerPasswordTools() */""}
+          <div class="field"><label for="partnerPassword">Password ใหม่</label>
+            <div class="partner-password">
+              <input id="partnerPassword" name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" placeholder="${p.hasPassword?"เว้นว่าง = ใช้รหัสเดิม":"อย่างน้อย 8 ตัวอักษร"}">
+              <button type="button" class="partner-password-btn" id="partnerPasswordToggle" aria-pressed="false" aria-label="แสดงรหัสผ่าน" title="แสดง/ซ่อนรหัสผ่าน">${EYE_ICON}</button>
+              <button type="button" class="partner-password-btn partner-password-gen" id="partnerPasswordGenerate" title="สุ่มรหัสผ่าน 12 ตัวอักษร">สุ่ม</button>
+            </div>
+          </div>
+          <small class="span-2">Password ถูกเข้ารหัส (bcrypt) ก่อนบันทึก · ${p.hasPassword?"ตั้งไว้แล้ว — เว้นว่างถ้าไม่ต้องการเปลี่ยน":"ยังไม่ได้ตั้ง"}</small>
+        </div></section>
+        <div class="partner-modal-foot"><button type="submit" class="export">บันทึก</button><button type="button" class="partner-modal-cancel" data-partner-close>ยกเลิก</button></div>
+      </form>
+    </div>
+  </div>`
 }
 function noMenuAccessPage(){return`${hero("ไม่มีสิทธิ์เข้าถึงเมนู","บัญชีนี้ยังไม่ได้รับสิทธิ์สำหรับ Dashboard","ติดต่อผู้ดูแลระบบ")}
   <div class="empty-state access-empty-state"><h3>ไม่พบเมนูที่ได้รับอนุญาต</h3><p>Admin สามารถเปิดสิทธิ์ให้บัญชี @${escapeHtml(viewer.username)} ได้จากเมนู Users & Menu Access</p></div>`}
@@ -1139,9 +1601,15 @@ function renderNav(){
     document.getElementById("mainNav").innerHTML=[["status","สถานะตอนนี้"],["users","ผู้ใช้ตอนนี้"]].map(([id,label])=>`<button type="button" data-page="${id}" class="${state.rtPage===id?"active":""}">${label}</button>`).join("");
     document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.rtPage=b.dataset.page;render();if(state.rtPage==="users")loadActiveUsers()});requestAnimationFrame(updateNavOverflow);return
   }
-  const navItems=accessibleOverallMenus().map(menu=>[menu.id,menu.label]);
+  // เดิม: const navItems=accessibleOverallMenus().map(menu=>[menu.id,menu.label]);
+  // แยก "User Partners" ออกมาวางก่อน "Users & Menu Access" (ท้ายสุด) ตามที่ขอ (ยังเปิด/ปิดตามสิทธิ์เมนูเหมือนเมนูอื่น)
+  const navItems=accessibleOverallMenus().filter(menu=>menu.id!=="partnerUsers").map(menu=>[menu.id,menu.label]);
   // เดิม: คอมเมนต์ไว้ก่อนตามที่ขอ — ซ่อนแท็บ "Users & Menu Access" ออกจาก nav ชั่วคราว
   // เปิดกลับมาเพื่อเทส permission (ดู [[nearsip-user-menu-permission-testing]]) — admin ต้องเข้าหน้านี้ได้ถึงจะกำหนดสิทธิ์ราย user ได้
+  // เดิม: push "Users & Menu Access" ก่อน แล้วค่อย "User Partners" — สลับให้ "Users & Menu Access" อยู่ท้ายสุดตามที่ขอ
+  // if(viewer.role==="admin")navItems.push(["settings","Users & Menu Access"]);
+  // if(canAccessMenu("partnerUsers"))navItems.push(["partnerUsers","User Partners"]);
+  if(canAccessMenu("partnerUsers"))navItems.push(["partnerUsers","User Partners"]);
   if(viewer.role==="admin")navItems.push(["settings","Users & Menu Access"]);
   document.getElementById("mainNav").innerHTML=navItems.map(([id,label])=>`<button type="button" data-page="${id}" class="${state.page===id?"active":""}">${label}</button>`).join("");
   document.querySelectorAll("#mainNav button").forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render()});requestAnimationFrame(updateNavOverflow)
@@ -1154,6 +1622,37 @@ function bindControls(){
   };
   Object.entries(ids).forEach(([id,[key]])=>{const el=document.getElementById(id);if(el){el.value=state[key];el.onchange=e=>{state[key]=e.target.value;render()}}});
   document.querySelectorAll("[data-engage]").forEach(b=>b.onclick=()=>{state.engageTab=b.dataset.engage;render()});
+  // หน้า "User Partners"
+  // เดิม: เปิดฟอร์ม inline แล้ว scrollIntoView — ตอนนี้เปิดเป็น modal แล้ว focus ช่องแรก
+  // document.querySelectorAll("[data-partner-edit]").forEach(b=>b.onclick=()=>{state.partnerEditId=b.dataset.partnerEdit;render();document.getElementById("partnerUserForm")?.scrollIntoView({behavior:"smooth",block:"center"})});
+  document.querySelectorAll("[data-partner-edit]").forEach(b=>b.onclick=()=>{state.partnerEditId=b.dataset.partnerEdit;render();document.getElementById("partnerName")?.focus()});
+  const partnerForm=document.getElementById("partnerUserForm");if(partnerForm)partnerForm.onsubmit=savePartnerUserForm;
+  // เดิม: const cancelPartnerEdit=document.getElementById("cancelPartnerEdit");if(cancelPartnerEdit)cancelPartnerEdit.onclick=()=>{state.partnerEditId="";render()};
+  // ปิด modal: ปุ่ม ✕ / ยกเลิก, คลิกพื้นหลัง, กด Esc
+  // เดิม: const closePartnerModal=()=>{const id=state.partnerEditId;state.partnerEditId="";render();document.querySelector(`[data-partner-edit="${CSS.escape(id)}"]`)?.focus()};
+  // ใช้ปิดได้ทั้ง modal แก้ไขและ modal QR Code (คืน focus ไปที่ปุ่มที่เปิด)
+  const closePartnerModal=()=>{
+    const selector=state.partnerQrId?`[data-partner-qr="${CSS.escape(state.partnerQrId)}"]`:`[data-partner-edit="${CSS.escape(state.partnerEditId)}"]`;
+    state.partnerEditId="";state.partnerQrId="";render();document.querySelector(selector)?.focus()
+  };
+  document.querySelectorAll("[data-partner-qr]").forEach(b=>b.onclick=()=>{state.partnerQrId=b.dataset.partnerQr;render();document.getElementById("partnerModal")?.focus()});
+  if(state.page==="partnerUsers"&&state.partnerQrId&&document.getElementById("partnerQrImg"))renderPartnerQr(state.partnerQrId);
+  // เดิม: ปุ่มคัดลอกลิงก์ — เอาออกพร้อมลิงก์ตามที่ขอ
+  // const partnerQrCopy=document.getElementById("partnerQrCopy");
+  // if(partnerQrCopy)partnerQrCopy.onclick=async()=>{
+  //   try{await navigator.clipboard.writeText(partnerStoreUrl(state.partnerQrId));showDashboardToast("คัดลอกลิงก์แล้ว")}
+  //   catch{showDashboardToast("คัดลอกไม่สำเร็จ")}
+  // };
+  document.querySelectorAll("[data-partner-close]").forEach(b=>b.onclick=closePartnerModal);
+  const partnerBackdrop=document.getElementById("partnerModalBackdrop");
+  if(partnerBackdrop){
+    partnerBackdrop.onclick=e=>{if(e.target===partnerBackdrop)closePartnerModal()};
+    partnerBackdrop.onkeydown=e=>{if(e.key==="Escape")closePartnerModal()};
+  }
+  initPartnerProvinceSelect();
+  initPartnerPasswordTools();
+  initPartnerMap();
+  const retryPartnerUsers=document.getElementById("retryPartnerUsers");if(retryPartnerUsers)retryPartnerUsers.onclick=()=>{partnerUsersFailed=false;render()};
   document.querySelectorAll("[data-gran]").forEach(b=>b.onclick=()=>{state.granularity=b.dataset.gran;render()});
   document.querySelectorAll("[data-trendmetric]").forEach(b=>b.onclick=()=>{state.trendMetric=b.dataset.trendmetric;render()});
   document.querySelectorAll("[data-trendgran]").forEach(b=>b.onclick=()=>{state.trendGran=b.dataset.trendgran;render()});
@@ -1177,6 +1676,26 @@ function bindControls(){
     const userId=input.dataset.userId,menuId=input.dataset.menuId,nextMenus=new Set(userMenuPermissions[userId]||[]);
     if(input.checked)nextMenus.add(menuId);else nextMenus.delete(menuId);
     userMenuPermissions={...userMenuPermissions,[userId]:DASHBOARD_MENUS.map(menu=>menu.id).filter(id=>nextMenus.has(id))};
+    // บัญชีร้าน → บันทึกลง DB (set_location.dashboard_menus) แทน localStorage · ไม่สำเร็จ = ย้อนสวิตช์กลับ
+    const partnerTarget=managedUsers.find(user=>user.id===userId&&user.storeId);
+    if(partnerTarget){
+      const previous=partnerTarget.menus||[];
+      render();
+      fetch(`/api/partner-users/${encodeURIComponent(partnerTarget.storeId)}/menus`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({menus:userMenuPermissions[userId]})})
+        .then(async res=>{
+          const json=await res.json().catch(()=>({}));
+          if(!res.ok)throw new Error(json.message||"save failed");
+          partnerTarget.menus=json.menus;userMenuPermissions={...userMenuPermissions,[userId]:json.menus};
+          showDashboardToast(`บันทึกสิทธิ์ ${partnerTarget.displayName} แล้ว`);
+        })
+        .catch(err=>{
+          console.warn("Failed to save partner menus",err);
+          userMenuPermissions={...userMenuPermissions,[userId]:previous};
+          showDashboardToast("บันทึกสิทธิ์ไม่สำเร็จ");
+        })
+        .finally(()=>{if(state.page==="settings")render()});
+      return;
+    }
     const saved=saveUserMenuPermissions(userMenuPermissions),targetUser=managedUsers.find(user=>user.id===userId);
     render();
     showDashboardToast(saved?`บันทึกสิทธิ์ ${targetUser?.displayName||"ผู้ใช้"} แล้ว`:"อัปเดตสิทธิ์ชั่วคราวแล้ว แต่ browser ไม่อนุญาตให้บันทึก")
@@ -1213,6 +1732,9 @@ function render(){
       content.innerHTML=noMenuAccessPage()
     }else if(state.mode==="overall"&&state.page==="settings"&&viewer.role==="admin"){
       content.innerHTML=adminSettingsPage()
+    }else if(state.mode==="overall"&&state.page==="partnerUsers"){
+      // ไม่ขึ้นกับ aggregate()/ตัวกรอง — แสดงบัญชีร้านทั้งหมดเสมอ
+      content.innerHTML=partnerUsersPage()
     }else{
       const d=aggregate("current"),p=aggregate("prior");
       if(!d.rows||d.rows.length===0){

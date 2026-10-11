@@ -23,3 +23,28 @@ export async function fetchPresenceActiveCount(): Promise<number | null> {
   }
   return null;
 }
+
+/**
+ * GET {NEARSIP_FRONTEND_URL}/api/presence/users → user id ที่ active ตอนนี้ (เกณฑ์เดียวกับ /count)
+ * ใช้กับหน้า "ผู้ใช้ตอนนี้" ปุ่ม "ออนไลน์ตอนนี้" — คืน null / throw ตามกติกาเดียวกับ fetchPresenceActiveCount()
+ */
+export async function fetchPresenceActiveUserIds(): Promise<string[] | null> {
+  const frontendUrl = process.env.NEARSIP_FRONTEND_URL;
+  const presenceKey = process.env.PRESENCE_INTERNAL_KEY;
+  if (!frontendUrl || !presenceKey) return null;
+
+  const res = await fetch(`${frontendUrl}/api/presence/users`, {
+    headers: { "x-api-key": presenceKey },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const json: unknown = await res.json();
+  if (
+    json && typeof json === "object" && "userIds" in json && Array.isArray(json.userIds) &&
+    json.userIds.every((id) => typeof id === "string")
+  ) {
+    return json.userIds;
+  }
+  return null;
+}

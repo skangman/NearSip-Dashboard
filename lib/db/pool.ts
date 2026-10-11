@@ -3,6 +3,10 @@
 // Never import this from a Client Component — it reads DATABASE_URL, which must
 // stay on the server. Every query under lib/db MUST be a plain SELECT: this
 // layer only ever reads, it never writes to the DB.
+//
+// ข้อยกเว้นเดียว: เมนู "User Partners" เขียน set_location.province/username/password
+// (updatePartnerUser ใน ./partner-user.repository) และ set_location.dashboard_menus (updatePartnerMenus) — admin เท่านั้น
+// เดิม: "Every query under lib/db MUST be a plain SELECT" ไม่มีข้อยกเว้น
 
 import { Pool, type PoolClient } from "pg";
 

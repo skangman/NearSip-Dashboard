@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { Viewer } from "@/lib/domain/viewer";
 import { MOCK_ACCOUNTS } from "./mock-accounts";
+import { endPartnerSession, getPartnerViewer } from "./partner-session";
 
 export const SESSION_COOKIE_NAME = "nearsip_mock_session";
 
@@ -18,12 +19,16 @@ function sessionCookieOptions(remember: boolean) {
 
 export async function getCurrentViewer(): Promise<Viewer | null> {
   const sessionId = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
-  if (!sessionId) return null;
-
-  return (
-    MOCK_ACCOUNTS.find((account) => account.sessionId === sessionId)?.viewer ??
-    null
-  );
+  // เดิม: if (!sessionId) return null; แล้วคืน mock viewer หรือ null
+  // ตอนนี้: บัญชีเดิมตรวจก่อนเหมือนเดิม — ไม่มี/ไม่ตรงค่อยดู session บัญชีร้าน (cookie แยก ดู partner-session.ts)
+  const mockViewer = sessionId
+    ? MOCK_ACCOUNTS.find((account) => account.sessionId === sessionId)?.viewer ?? null
+    : null;
+  if (mockViewer) return mockViewer;
+  return getPartnerViewer().catch((err) => {
+    console.error("partner session check failed", err);
+    return null;
+  });
 }
 
 export async function startSession(sessionId: string, remember: boolean): Promise<void> {
@@ -32,4 +37,6 @@ export async function startSession(sessionId: string, remember: boolean): Promis
 
 export async function endSession(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE_NAME);
+  // logout บัญชีร้านด้วย (cookie แยก)
+  await endPartnerSession();
 }

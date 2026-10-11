@@ -7,5 +7,6 @@ export default async function Home() {
   const viewer = await getCurrentViewer();
   if (!viewer) redirect("/login");
 
-  return <Dashboard viewer={viewer} managedUsers={listManagedUsersFor(viewer)} />;
+  // เดิม: managedUsers={listManagedUsersFor(viewer)} — ตอนนี้ async (รวมบัญชีร้านจาก DB)
+  return <Dashboard viewer={viewer} managedUsers={await listManagedUsersFor(viewer)} />;
 }

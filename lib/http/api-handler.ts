@@ -1,9 +1,12 @@
 import { BackendRequestError } from "@/lib/clients/backend-client";
 import type { Viewer } from "@/lib/domain/viewer";
-import { BadRequestError } from "@/lib/http/errors";
+// เดิม: import { BadRequestError } from "@/lib/http/errors";
+import { BadRequestError, ForbiddenError } from "@/lib/http/errors";
 import { getCurrentViewer } from "@/lib/services/auth/session";
 
-type ApiContext<P> = { viewer: Viewer; params: P; searchParams: URLSearchParams };
+// เดิม: type ApiContext<P> = { viewer: Viewer; params: P; searchParams: URLSearchParams };
+// เพิ่ม request ให้ route แบบ PUT อ่าน body ได้ (เมนู User Partners) — route GET เดิมไม่ต้องใช้
+type ApiContext<P> = { viewer: Viewer; params: P; searchParams: URLSearchParams; request: Request };
 
 type ApiHandlerOptions = {
   /** ข้อความตอบกลับ (502) เมื่อ service ล้มเหลวโดยไม่ใช่ error จาก backend */
@@ -19,6 +22,9 @@ function backendErrorStatus(status: number): number {
 function toErrorResponse(err: unknown, { failureMessage, logLabel }: ApiHandlerOptions): Response {
   if (err instanceof BadRequestError) {
     return Response.json({ message: err.message }, { status: 400 });
+  }
+  if (err instanceof ForbiddenError) {
+    return Response.json({ message: err.message }, { status: 403 });
   }
   if (err instanceof BackendRequestError) {
     return Response.json(
@@ -48,7 +54,18 @@ export function authenticatedRoute<P = Record<string, never>>(
     try {
       const params = (context ? await context.params : {}) as P;
       const searchParams = new URL(request.url).searchParams;
-      return Response.json(await handler({ viewer, params, searchParams }));
+      // บัญชีร้าน: บังคับทุก API เป็นข้อมูลร้านตัวเอง — ทับ ?storeId= ที่ส่งมาเสมอ (กันแก้ URL ดูร้านอื่น)
+      // และ path ที่มี [storeId] ต้องเป็นร้านตัวเองเท่านั้น · บัญชีเดิมไม่มี storeId → ไม่กระทบ
+      if (viewer.storeId) {
+        // route ที่ไม่มี [param] ได้ params = undefined → ต้องใช้ ?. (ไม่งั้น TypeError → 502)
+        const pathStoreId = (params as { storeId?: unknown } | undefined)?.storeId;
+        if (pathStoreId !== undefined && pathStoreId !== viewer.storeId) {
+          throw new ForbiddenError("Partner accounts can only access their own store");
+        }
+        searchParams.set("storeId", viewer.storeId);
+      }
+      // เดิม: return Response.json(await handler({ viewer, params, searchParams }));
+      return Response.json(await handler({ viewer, params, searchParams, request }));
     } catch (err) {
       return toErrorResponse(err, options);
     }

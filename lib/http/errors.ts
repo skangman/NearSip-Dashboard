@@ -5,3 +5,11 @@ export class BadRequestError extends Error {
     this.name = "BadRequestError";
   }
 }
+
+/** Thrown when the viewer is logged in but not allowed to do this; api-handler answers it with HTTP 403. */
+export class ForbiddenError extends Error {
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}

@@ -5,6 +5,10 @@ import {
   type Viewer,
 } from "@/lib/domain/viewer";
 import { MOCK_ACCOUNTS } from "./mock-accounts";
+import { withClient } from "@/lib/db/pool";
+import { listPartnerUsers } from "@/lib/db/partner-user.repository";
+import { partnerMenus } from "@/lib/domain/menu-access";
+import { partnerLogin } from "./partner-session";
 import { startSession } from "./session";
 
 const MAX_USERNAME_LENGTH = 64;
@@ -32,9 +36,38 @@ export function listManagedUsers(): ManagedUser[] {
   }));
 }
 
-/** รายการผู้ใช้ที่ viewer จัดการสิทธิ์เมนูได้ — เฉพาะ admin */
-export function listManagedUsersFor(viewer: Viewer): ManagedUser[] {
-  return viewer.role === "admin" ? listManagedUsers() : [];
+// เดิม:
+// /** รายการผู้ใช้ที่ viewer จัดการสิทธิ์เมนูได้ — เฉพาะ admin */
+// export function listManagedUsersFor(viewer: Viewer): ManagedUser[] {
+//   return viewer.role === "admin" ? listManagedUsers() : [];
+// }
+
+/**
+ * รายการผู้ใช้ที่ viewer จัดการสิทธิ์เมนูได้ — เฉพาะ admin
+ * = บัญชีเดิม (mock) + บัญชีร้านที่ตั้ง username แล้ว (สิทธิ์เมนูอยู่ใน set_location.dashboard_menus)
+ * อ่านบัญชีร้านไม่สำเร็จ → คืนแค่บัญชีเดิม (หน้าไม่พัง)
+ */
+export async function listManagedUsersFor(viewer: Viewer): Promise<ManagedUser[]> {
+  if (viewer.role !== "admin") return [];
+  let partners: ManagedUser[] = [];
+  try {
+    partners = (await withClient(listPartnerUsers))
+      .filter((p) => p.username)
+      .map((p) => ({
+        id: `partner:${p.storeId}`,
+        username: p.username!,
+        displayName: p.name || p.locationName || p.storeId,
+        role: "owner" as const,
+        scope: `${p.name || p.storeId} · ${p.province || "ไม่ระบุจังหวัด"}`,
+        password: "",
+        storeId: p.storeId,
+        menus: partnerMenus(p.dashboardMenus),
+        hasPassword: p.hasPassword,
+      }));
+  } catch (err) {
+    console.error("list partner accounts failed", err);
+  }
+  return [...listManagedUsers(), ...partners];
 }
 
 function findAccount(username: string, password: string) {
@@ -82,7 +115,13 @@ export async function login(payload: unknown): Promise<LoginResult> {
   }
 
   const account = findAccount(credentials.username, credentials.password);
+  // เดิม: if (!account) return 401 ทันที — ตอนนี้บัญชีเดิมยังตรวจก่อนเหมือนเดิม ไม่เจอค่อยลองบัญชีร้าน (set_location)
   if (!account) {
+    const partnerViewer = await partnerLogin(credentials.username, credentials.password, credentials.remember).catch((err) => {
+      console.error("partner login failed", err);
+      return null;
+    });
+    if (partnerViewer) return { ok: true, viewer: partnerViewer };
     return { ok: false, status: 401, message: "Username หรือ Password ไม่ถูกต้อง" };
   }
 
