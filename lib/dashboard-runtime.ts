@@ -679,9 +679,14 @@ function lineChart(series,labels,title="แนวโน้ม",unit="จำน�
   const lines=series.map((s,si)=>{const pts=s.values.map((v,i)=>`${x(i)},${y(v)}`).join(" ");const dots=s.values.map((v,i)=>`<circle class="chart-dot" data-series="${s.name}" data-label="${labels[i]}" data-value="${v}" cx="${x(i)}" cy="${y(v)}" r="${si===0?5:4}" style="fill:${colors[si]}" tabindex="0"><title>${s.name} · ${labels[i]} · ${fmt(v)} ${unit}</title></circle>`).join("");return`<polyline fill="none" style="stroke:${colors[si]}" stroke-width="${si===0?4:2.5}" ${si>0?'stroke-dasharray="6 5"':""} points="${pts}"/>${dots}`}).join("");
   return`<div class="chart-wrap"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${title}"><title>${title} · หน่วย ${unit}</title>${grid}${yt}${xl}${lines}</svg><div class="legend">${series.map((s,i)=>`<span><i style="background:${colors[i]}"></i>${s.name}</span>`).join("")}</div><div class="chart-value">แตะจุดข้อมูลเพื่อดูค่า</div></div>`
 }
-function desktopAndMobileTable(headers,rows,mobileCards){
+// เดิม: function desktopAndMobileTable(headers,rows,mobileCards){ — เพิ่ม opts.loadMore (ไม่ส่ง = แถบพับ "ดูรายการทั้งหมด" เหมือนเดิมทุกหน้า)
+// opts.loadMore=true: บนมือถือแสดง 8 รายการแรก + ปุ่ม "โหลดเพิ่ม" ทีละ 8 (ใช้ที่หน้า User Partners) — ดู bindControls()
+function desktopAndMobileTable(headers,rows,mobileCards,opts={}){
   const visible=mobileCards.slice(0,8),remaining=mobileCards.slice(8);
-  const more=remaining.length?`<details class="mobile-more"><summary>ดูรายการทั้งหมดอีก ${remaining.length} รายการ</summary>${remaining.join("")}</details>`:"";
+  // เดิม: const more=remaining.length?`<details class="mobile-more">...`:"";
+  const more=!remaining.length?"":opts.loadMore
+    ?`${remaining.map(c=>c.replace("<article ","<article hidden ")).join("")}<button type="button" class="mobile-load-more" data-load-more>โหลดเพิ่ม (เหลืออีก ${remaining.length} รายการ)</button>`
+    :`<details class="mobile-more"><summary>ดูรายการทั้งหมดอีก ${remaining.length} รายการ</summary>${remaining.join("")}</details>`;
   return`<div class="table-wrap desktop-table"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div><div class="mobile-list">${visible.join("")}${more}</div>`
 }
 function mobileCard(title,subtitle,main,status,details){
@@ -1274,7 +1279,8 @@ function partnerUsersPage(){
   const heroNote=`<span class="partner-count">${partnerUsers.length} ร้าน</span>${canEdit?`<button type="button" class="partner-add-btn" data-partner-edit="${NEW_PARTNER_ID}"><span aria-hidden="true">+</span> เพิ่มสถานที่</button>`:""}`;
   // เดิม: ...card("รายการสถานที่","ข้อมูลสถานที่ + บัญชีร้าน · กดไอคอนดินสอเพื่อแก้ไข",...)}${editing?partnerEditModal(editing):""}`
   // เดิม: return`${hero(title,desc,`${partnerUsers.length} ร้าน`)}${kpis}...
-  return`${hero(title,desc,heroNote)}${kpis}${card("รายการสถานที่","ข้อมูลสถานที่ + บัญชีร้าน · กดไอคอน QR เพื่อดู/ดาวน์โหลด QR Code · กดไอคอนดินสอเพื่อแก้ไข",desktopAndMobileTable(headers,rows,cards))}${editing?partnerEditModal(editing):""}${qrStore?partnerQrModal(qrStore):""}`
+  // เดิม: desktopAndMobileTable(headers,rows,cards) — เพิ่ม {loadMore:true} (มือถือใช้ปุ่มโหลดเพิ่มแทนแถบพับ)
+  return`${hero(title,desc,heroNote)}${kpis}${card("รายการสถานที่","ข้อมูลสถานที่ + บัญชีร้าน · กดไอคอน QR เพื่อดู/ดาวน์โหลด QR Code · กดไอคอนดินสอเพื่อแก้ไข",desktopAndMobileTable(headers,rows,cards,{loadMore:true}))}${editing?partnerEditModal(editing):""}${qrStore?partnerQrModal(qrStore):""}`
 }
 // modal "เพิ่มสถานที่" ใช้ partnerEditModal() ตัวเดียวกับแก้ไข โดยส่งร้านว่างนี้เข้าไป (storeId "" = สร้างใหม่)
 const NEW_PARTNER_ID="__new__";
@@ -1623,6 +1629,13 @@ function bindControls(){
   };
   Object.entries(ids).forEach(([id,[key]])=>{const el=document.getElementById(id);if(el){el.value=state[key];el.onchange=e=>{state[key]=e.target.value;render()}}});
   document.querySelectorAll("[data-engage]").forEach(b=>b.onclick=()=>{state.engageTab=b.dataset.engage;render()});
+  // ปุ่ม "โหลดเพิ่ม" ของรายการมือถือ (desktopAndMobileTable opts.loadMore) — เปิดทีละ 8 รายการ ครบแล้วซ่อนปุ่ม
+  document.querySelectorAll("[data-load-more]").forEach(b=>b.onclick=()=>{
+    const hiddenItems=[...b.parentElement.querySelectorAll(".mobile-item[hidden]")];
+    hiddenItems.slice(0,8).forEach(item=>item.hidden=false);
+    const left=hiddenItems.length-8;
+    if(left>0)b.textContent=`โหลดเพิ่ม (เหลืออีก ${left} รายการ)`;else b.remove();
+  });
   // หน้า "User Partners"
   // เดิม: เปิดฟอร์ม inline แล้ว scrollIntoView — ตอนนี้เปิดเป็น modal แล้ว focus ช่องแรก
   // document.querySelectorAll("[data-partner-edit]").forEach(b=>b.onclick=()=>{state.partnerEditId=b.dataset.partnerEdit;render();document.getElementById("partnerUserForm")?.scrollIntoView({behavior:"smooth",block:"center"})});

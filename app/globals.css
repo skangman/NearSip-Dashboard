@@ -1040,3 +1040,8 @@ th:has(> .partner-col-center),td:has(> [data-partner-qr]){text-align:center}
 .partner-mobile-actions>span{display:flex;gap:6px}
 /* User Partners — มือถือ (hero เรียงแนวตั้ง ≤767px): ป้ายจำนวนร้านซ้าย · ปุ่ม "+ เพิ่มสถานที่" ชิดขวา */
 @media(max-width:767px){.hero-note:has(> .partner-add-btn){align-self:stretch;justify-content:space-between}}
+/* รายการมือถือแบบปุ่ม "โหลดเพิ่ม" (desktopAndMobileTable opts.loadMore — ตอนนี้ใช้หน้า User Partners) */
+.mobile-item[hidden]{display:none}
+.mobile-load-more{display:block;width:100%;margin-top:4px;padding:10px;font:inherit;font-size:13px;font-weight:var(--fw-strong);cursor:pointer;color:var(--color-secondary-text);background:var(--color-secondary-light);border:1px solid var(--color-secondary-border);border-radius:var(--radius-control)}
+.mobile-load-more:hover{border-color:var(--color-secondary)}
+.mobile-load-more:focus-visible{outline:none;box-shadow:var(--focus-ring)}
